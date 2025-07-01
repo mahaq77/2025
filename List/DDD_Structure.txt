@@ -33,3 +33,5 @@ mfe2/
         │   └── models/
         ├── app.routes.ts
         └── app.component.ts
+		
+		tests
