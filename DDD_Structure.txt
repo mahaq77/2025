@@ -1,0 +1,35 @@
+mfe2/
+└── src/
+    └── app/
+        ├── product/
+        │   ├── components/
+        │   │   ├── product-list/
+        │   │   │   ├── product-list.component.ts
+        │   │   │   └── product-list.component.html
+        │   │   └── product-detail/
+        │   │       ├── product-detail.component.ts
+        │   │       └── product-detail.component.html
+        │   ├── services/
+        │   │   └── product.service.ts
+        │   ├── models/
+        │   │   └── product.model.ts
+        │   └── product.routes.ts
+        ├── order/
+        │   ├── components/
+        │   │   ├── order-list/
+        │   │   │   ├── order-list.component.ts
+        │   │   │   └── order-list.component.html
+        │   │   └── order-detail/
+        │   │       ├── order-detail.component.ts
+        │   │       └── order-detail.component.html
+        │   ├── services/
+        │   │   └── order.service.ts
+        │   ├── models/
+        │   │   └── order.model.ts
+        │   └── order.routes.ts
+        ├── shared/
+        │   ├── components/
+        │   ├── services/
+        │   └── models/
+        ├── app.routes.ts
+        └── app.component.ts
