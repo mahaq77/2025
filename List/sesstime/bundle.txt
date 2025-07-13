@@ -1,0 +1,337 @@
+## ⚡ **Next (if you'd like):**  `SessionManagerComponent` + `SessionTimeoutService` in shared module
+
+* Bundle this + `SessionManagerComponent` + `SessionTimeoutService` in shared module
+* Add live **StackBlitz** demo
+* Package as **downloadable zip / GitHub**
+
+ session-timeout-dialog.component.ts
+
+import { Component, Input, Output, EventEmitter, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+
+@Component({
+  selector: 'app-session-timeout-dialog',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div *ngIf="isOpen()" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40">
+      <div class="bg-white p-6 rounded shadow-md w-80">
+        <h2 class="text-lg font-semibold mb-2">Session Expiring Soon</h2>
+        <p class="mb-4">Your session will expire in {{ timeRemaining() }}.</p>
+        <div class="flex justify-end gap-2">
+          <button (click)="onExtend.emit()" class="px-3 py-1 bg-green-500 text-white rounded">Extend</button>
+          <button (click)="onLogout.emit()" class="px-3 py-1 bg-red-500 text-white rounded">Logout</button>
+        </div>
+      </div>
+    </div>
+  `
+})
+export class SessionTimeoutDialogComponent {
+  readonly isOpen = signal<boolean>(false);
+  readonly timeRemaining = signal<string>('');
+
+  @Input()
+  set open(val: boolean) { this.isOpen.set(val); }
+
+  @Input()
+  set remaining(val: string) { this.timeRemaining.set(val); }
+
+  @Output() onExtend = new EventEmitter<void>();
+  @Output() onLogout = new EventEmitter<void>();
+}
+
+
+Replace <SessionTimeoutDialog
+  isOpen={showWarning}
+  timeRemaining={formatTimeRemaining()}
+  onExtendSession={handleExtendSession}
+  onLogout={logoutUser}
+/>
+
+with
+<app-session-timeout-dialog
+  [open]="showWarning"
+  [remaining]="timeRemaining"
+  (onExtend)="handleExtendSession()"
+  (onLogout)="logoutUser()"
+></app-session-timeout-dialog>
+Update shared.module.ts:
+
+import { NgModule } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { SessionStatusComponent } from './session-status/session-status.component';
+import { SessionTimeoutDialogComponent } from './session-timeout-dialog/session-timeout-dialog.component';
+
+@NgModule({
+  imports: [CommonModule, SessionStatusComponent, SessionTimeoutDialogComponent],
+  exports: [SessionStatusComponent, SessionTimeoutDialogComponent]
+})
+export class SharedModule {}
+
+
+src/
+├── app/
+│   ├── shared/
+│   │   ├── session-manager/
+│   │   │   └── session-manager.component.ts
+│   │   ├── session-status/
+│   │   │   └── session-status.component.ts
+│   │   ├── session-timeout-dialog/
+│   │   │   └── session-timeout-dialog.component.ts
+│   │   ├── session-timeout.service.ts
+│   │   └── shared.module.ts
+│   ├── app.component.ts
+│   ├── app.component.html
+│   └── app.config.ts
+└── main.ts
+
+| Layer                           | Purpose                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| `SessionTimeoutService`         | Pure logic (track user activity, manage timers, show warning, expire session). |
+| `SessionManagerComponent`       | Uses the service, subscribes to signals, shows/hides dialog, sends toasts.     |
+| `SessionTimeoutDialogComponent` | UI for “Your session will expire soon” + buttons                               |
+| `SessionStatusComponent`        | UI showing `Active/Inactive`, websocket, last activity                         |
+| `SharedModule`                  | Groups the above so feature modules can import easily.                         |
+| `AppComponent`                  | Root; simply uses `SessionManager` and `SessionStatus`.                        |
+
+===============================================================================
+readonly isOpen = signal<boolean>(false);
+
+@Input() set open(val: boolean) { this.isOpen.set(val); }
+===============================================================================
+
+
+
+===============================================================================
+session-manager.component.ts
+### 📁 Individual files (latest Angular 18+ project with signals)
+
+#### ✅ session-manager.component.ts
+
+```typescript
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { SessionTimeoutService } from '../session-timeout.service';
+import { ToastService } from '../toast.service';
+import { SessionTimeoutDialogComponent } from '../session-timeout-dialog/session-timeout-dialog.component';
+import { CommonModule } from '@angular/common';
+
+@Component({
+  selector: 'app-session-manager',
+  standalone: true,
+  imports: [CommonModule, SessionTimeoutDialogComponent],
+  template: `
+    <app-session-timeout-dialog
+      [open]="showWarning()"
+      [remaining]="timeRemaining()"
+      (onExtend)="handleExtendSession()"
+      (onLogout)="logoutUser()">
+    </app-session-timeout-dialog>
+  `
+})
+export class SessionManagerComponent implements OnInit, OnDestroy {
+  private sessionService = inject(SessionTimeoutService);
+  private toast = inject(ToastService);
+
+  showWarning = this.sessionService.showWarning;
+  timeRemaining = this.sessionService.timeRemaining;
+
+  ngOnInit() {
+    this.sessionService.start();
+  }
+
+  handleExtendSession() {
+    this.sessionService.extendSession();
+    this.toast.show('Session Extended', 'You have extended your session.');
+  }
+
+  logoutUser() {
+    this.sessionService.logoutUser();
+  }
+
+  ngOnDestroy() {
+    this.sessionService.stop();
+  }
+}
+```
+
+#### ✅ session-status.component.ts
+
+```typescript
+import { Component, Input, signal } from '@angular/core';
+import { Clock, Wifi, WifiOff } from 'lucide-angular';
+
+@Component({
+  selector: 'app-session-status',
+  standalone: true,
+  imports: [Clock, Wifi, WifiOff],
+  template: `
+    <div class="flex items-center gap-4 p-4 bg-card border rounded-lg">
+      <div class="flex items-center gap-2">
+        <lucide-clock class="h-4 w-4 text-muted-foreground"></lucide-clock>
+        <span class="text-sm">Last activity: {{ getLastActivityText() }}</span>
+      </div>
+      <span [ngClass]="isActive() ? 'bg-green-500' : 'bg-red-500'">{{ isActive() ? 'Active' : 'Inactive' }}</span>
+      <div class="flex items-center gap-2">
+        <lucide-wifi *ngIf="websocketConnected(); else disconnected"></lucide-wifi>
+        <ng-template #disconnected><lucide-wifi-off></lucide-wifi-off></ng-template>
+        <span>{{ websocketConnected() ? 'Connected' : 'Disconnected' }}</span>
+      </div>
+    </div>
+  `
+})
+export class SessionStatusComponent {
+  readonly isActive = signal(true);
+  readonly lastActivity = signal(Date.now());
+  readonly websocketConnected = signal(false);
+
+  @Input() set active(val: boolean) { this.isActive.set(val); }
+  @Input() set activity(val: number) { this.lastActivity.set(val); }
+  @Input() set connected(val: boolean) { this.websocketConnected.set(val); }
+
+  getLastActivityText(): string {
+    const diff = Date.now() - this.lastActivity();
+    const mins = Math.floor(diff / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    return mins > 0 ? `${mins}m ${secs}s ago` : `${secs}s ago`;
+  }
+}
+```
+
+#### ✅ session-timeout-dialog.component.ts
+
+```typescript
+import { Component, Input, Output, EventEmitter, signal } from '@angular/core';
+
+@Component({
+  selector: 'app-session-timeout-dialog',
+  standalone: true,
+  template: `
+    <div *ngIf="isOpen()" class="dialog">
+      <p>Your session expires in {{ timeRemaining() }}</p>
+      <button (click)="onExtend.emit()">Extend</button>
+      <button (click)="onLogout.emit()">Logout</button>
+    </div>
+  `
+})
+export class SessionTimeoutDialogComponent {
+  readonly isOpen = signal(false);
+  readonly timeRemaining = signal('');
+
+  @Input() set open(val: boolean) { this.isOpen.set(val); }
+  @Input() set remaining(val: string) { this.timeRemaining.set(val); }
+
+  @Output() onExtend = new EventEmitter<void>();
+  @Output() onLogout = new EventEmitter<void>();
+}
+```
+
+#### ✅ session-timeout.service.ts
+
+```typescript
+import { Injectable, signal } from '@angular/core';
+
+@Injectable({ providedIn: 'root' })
+export class SessionTimeoutService {
+  showWarning = signal(false);
+  timeRemaining = signal('5:00');
+
+  start() { /* start timer */ }
+  extendSession() { /* logic */ }
+  logoutUser() { /* logic */ }
+  stop() { /* stop timer */ }
+}
+```
+
+#### ✅ shared.module.ts
+
+```typescript
+import { NgModule } from '@angular/core';
+import { SessionManagerComponent } from './session-manager/session-manager.component';
+import { SessionStatusComponent } from './session-status/session-status.component';
+import { SessionTimeoutDialogComponent } from './session-timeout-dialog/session-timeout-dialog.component';
+
+@NgModule({
+  imports: [SessionManagerComponent, SessionStatusComponent, SessionTimeoutDialogComponent],
+  exports: [SessionManagerComponent, SessionStatusComponent, SessionTimeoutDialogComponent]
+})
+export class SharedModule {}
+```
+
+---
+
+> ✅ Let me know if you'd also like `app.component.ts` and `package.json`! 🚀
+
+===============================================================================
+### ✅ app.component.ts
+
+```typescript
+import { Component } from '@angular/core';
+import { SessionManagerComponent } from './shared/session-manager/session-manager.component';
+import { SessionStatusComponent } from './shared/session-status/session-status.component';
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [SessionManagerComponent, SessionStatusComponent],
+  template: `
+    <h1>Angular 18+ Session Timeout Demo</h1>
+    <app-session-manager></app-session-manager>
+    <app-session-status [active]="true" [activity]="lastActivity" [connected]="true"></app-session-status>
+  `
+})
+export class AppComponent {
+  lastActivity = Date.now();
+}
+```
+
+---
+
+### ✅ Updated package.json (with new libs)
+
+```json
+{
+  "name": "angular-18-session-timeout",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "ng serve",
+    "build": "ng build"
+  },
+  "dependencies": {
+    "@angular/animations": "^18.0.0",
+    "@angular/common": "^18.0.0",
+    "@angular/compiler": "^18.0.0",
+    "@angular/core": "^18.0.0",
+    "@angular/forms": "^18.0.0",
+    "@angular/platform-browser": "^18.0.0",
+    "@angular/platform-browser-dynamic": "^18.0.0",
+    "@angular/router": "^18.0.0",
+    "lucide-angular": "^0.263.0",
+    "rxjs": "^7.8.0",
+    "tslib": "^2.6.0",
+    "zone.js": "~0.14.0"
+  },
+  "devDependencies": {
+    "@angular/cli": "^18.0.0",
+    "@angular/compiler-cli": "^18.0.0",
+    "typescript": "^5.4.0"
+  }
+}
+```
+
+---
+ 
+===============================================================================
+ app.config.ts
+ 
+ export const APP_CONFIG = {
+  sessionTimeoutDuration: 30 * 60 * 1000,  // 30 minutes in ms
+  sessionWarningDuration: 5 * 60 * 1000,   // 5 minutes warning in ms
+  websocketUrl: 'wss://your-websocket-server.example.com',  // if you use websockets
+};
+
+===============================================================================
+
+===============================================================================
+<lucide-icon name="bell-ring"></lucide-icon>
+
+===============================================================================
