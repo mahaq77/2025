@@ -1,0 +1,612 @@
+Table of Contents
+Introduction to Domain-Driven Design
+Setting Up the Angular Project
+Product Management
+Domain Model
+Repository Layer
+Domain Services
+Application Layer
+Presentation Layer
+4. Order Management
+
+Domain Model
+Repository Layer
+Domain Services
+Application Layer
+Presentation Layer
+5. Integration and Orchestration
+
+6. Conclusion
+
+1. Introduction to Domain-Driven Design
+Domain-Driven Design (DDD) is a software development approach that emphasizes modeling software based on the business domain. The core concepts of DDD include:
+
+Domain: The sphere of knowledge and activity around which the business objectives revolve.
+Entities: Objects defined by their identity.
+Value Objects: Objects defined by their attributes without an inherent identity.
+Aggregates: Clusters of entities and value objects treated as a single unit.
+Repositories: Mechanisms for encapsulating storage, retrieval, and search behavior.
+Services: Operations that do not naturally fit within entities or value objects.
+Domain Events: Events that domain experts care about.
+2. Setting Up the Angular Project
+To get started, we need to set up an Angular project. Run the following commands to create a new Angular application:
+
+ng new ddd-angular-app
+cd ddd-angular-app
+ng generate module product
+ng generate module order
+We will organize our project into the following structure:
+
+src/
+│
+├── app/
+│   ├── product/
+│   ├── order/
+│   ├── core/
+│   ├── shared/
+│   ├── app.component.ts
+│   └── app.module.ts
+3. Product Management
+Domain Model
+First, we define the domain model for the product.
+
+product.model.ts
+
+export class Product {
+  constructor(
+    public id: string,
+    public name: string,
+    public description: string,
+    public price: number,
+    public category: string
+  ) {}
+ 
+  changePrice(newPrice: number) {
+    if (newPrice <= 0) {
+      throw new Error('Price must be greater than zero');
+    }
+    this.price = newPrice;
+  }
+}
+Repository Layer
+The repository layer handles data access logic, interacting with external RESTful APIs.
+
+product.repository.ts
+
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { Product } from '../models/product.model';
+ 
+@Injectable({
+  providedIn: 'root',
+})
+export class ProductRepository {
+  private apiUrl = 'https://api.example.com/products';
+ 
+  constructor(private http: HttpClient) {}
+ 
+  getAll(): Observable<Product[]> {
+    return this.http.get<Product[]>(this.apiUrl);
+  }
+ 
+  getById(id: string): Observable<Product> {
+    return this.http.get<Product>(`${this.apiUrl}/${id}`);
+  }
+ 
+  create(product: Product): Observable<Product> {
+    return this.http.post<Product>(this.apiUrl, product);
+  }
+ 
+  update(product: Product): Observable<Product> {
+    return this.http.put<Product>(`${this.apiUrl}/${product.id}`, product);
+  }
+ 
+  delete(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${id}`);
+  }
+}
+Domain Services
+Domain services encapsulate business logic specific to the domain.
+
+product.service.ts
+
+import { Injectable } from '@angular/core';
+import { ProductRepository } from '../repositories/product.repository';
+import { Product } from '../models/product.model';
+import { Observable } from 'rxjs';
+ 
+@Injectable({
+  providedIn: 'root',
+})
+export class ProductService {
+  constructor(private productRepository: ProductRepository) {}
+ 
+  getProducts(): Observable<Product[]> {
+    return this.productRepository.getAll();
+  }
+ 
+  getProductById(id: string): Observable<Product> {
+    return this.productRepository.getById(id);
+  }
+ 
+  saveProduct(product: Product): Observable<Product> {
+    if (product.id) {
+      return this.productRepository.update(product);
+    } else {
+      return this.productRepository.create(product);
+    }
+  }
+ 
+  deleteProduct(id: string): Observable<void> {
+    return this.productRepository.delete(id);
+  }
+}
+Application Layer
+The application layer orchestrates workflows and use cases.
+
+product-application.service.ts
+
+import { Injectable } from '@angular/core';
+import { ProductService } from '../domain/services/product.service';
+import { Product } from '../domain/models/product.model';
+import { Observable } from 'rxjs';
+ 
+@Injectable({
+  providedIn: 'root',
+})
+export class ProductApplicationService {
+  constructor(private productService: ProductService) {}
+ 
+  getProducts(): Observable<Product[]> {
+    return this.productService.getProducts();
+  }
+ 
+  getProductById(id: string): Observable<Product> {
+    return this.productService.getProductById(id);
+  }
+ 
+  saveProduct(product: Product): Observable<Product> {
+    return this.productService.saveProduct(product);
+  }
+ 
+  deleteProduct(id: string): Observable<void> {
+    return this.productService.deleteProduct(id);
+  }
+}
+Presentation Layer
+The presentation layer handles UI interactions.
+
+product-list.component.ts
+
+import { Component, OnInit } from '@angular/core';
+import { ProductApplicationService } from '../application/product-application.service';
+import { Product } from '../domain/models/product.model';
+ 
+@Component({
+  selector: 'app-product-list',
+  templateUrl: './product-list.component.html',
+  styleUrls: ['./product-list.component.css'],
+})
+export class ProductListComponent implements OnInit {
+  products: Product[] = [];
+ 
+  constructor(private productApplicationService: ProductApplicationService) {}
+ 
+  ngOnInit(): void {
+    this.productApplicationService.getProducts().subscribe((products) => {
+      this.products = products;
+    });
+  }
+ 
+  editProduct(product: Product) {
+    // Handle edit product logic here
+  }
+ 
+  deleteProduct(id: string) {
+    this.productApplicationService.deleteProduct(id).subscribe(() => {
+      this.products = this.products.filter(p => p.id !== id);
+    });
+  }
+}
+product-list.component.html
+
+<div *ngFor="let product of products">
+  <h3>{{ product.name }}</h3>
+  <p>{{ product.description }}</p>
+  <p>Price: {{ product.price }}</p>
+  <p>Category: {{ product.category }}</p>
+  <button (click)="editProduct(product)">Edit</button>
+  <button (click)="deleteProduct(product.id)">Delete</button>
+</div>
+Module Setup
+product.module.ts
+
+import { NgModule } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ProductListComponent } from './components/product-list.component';
+import { ProductApplicationService } from './application/product-application.service';
+import { ProductService } from './domain/services/product.service';
+import { ProductRepository } from './domain/repositories/product.repository';
+import { HttpClientModule } from '@angular/common/http';
+ 
+@NgModule({
+  declarations: [ProductListComponent],
+  imports: [CommonModule, HttpClientModule],
+  providers: [
+    ProductApplicationService,
+    ProductService,
+    ProductRepository,
+  ],
+})
+export class ProductModule {}
+4. Order Management
+Domain Model
+First, we define the domain model for the order.
+
+order.model.ts
+
+export class Order {
+  constructor(
+    public id: string,
+    public customerId: string,
+    public items: OrderItem[],
+    public totalAmount: number,
+    public status: OrderStatus
+  ) {}
+ 
+  calculateTotalAmount() {
+    this.totalAmount = this.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  }
+ 
+  changeStatus(newStatus: OrderStatus) {
+    this.status = newStatus;
+  }
+}
+ 
+export class OrderItem {
+  constructor(
+    public productId: string,
+    public price: number,
+    public quantity: number
+  ) {}
+}
+ 
+export enum OrderStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  SHIPPED = 'SHIPPED',
+  DELIVERED = 'DELIVERED',
+}
+Repository Layer
+The repository layer handles data access logic, interacting with external RESTful APIs.
+
+order.repository.ts
+
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { Order } from '../models/order.model';
+ 
+@Injectable({
+  providedIn: 'root',
+})
+export class OrderRepository {
+  private apiUrl = 'https://api.example.com/orders';
+ 
+  constructor(private http: HttpClient) {}
+ 
+  getAll(): Observable<Order[]> {
+    return this.http.get<Order[]>(this.apiUrl);
+  }
+ 
+  getById(id: string): Observable<Order> {
+    return this.http.get<Order>(`${this.apiUrl}/${id}`);
+  }
+ 
+  create(order: Order): Observable<Order> {
+    return this.http.post<Order>(this.apiUrl, order);
+  }
+ 
+  update(order: Order): Observable<Order> {
+    return this.http.put<Order>(`${this.apiUrl}/${order.id}`, order);
+ 
+ 
+ }
+ 
+  delete(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${id}`);
+  }
+}
+Domain Services
+Domain services encapsulate business logic specific to the domain.
+
+order.service.ts
+
+import { Injectable } from '@angular/core';
+import { OrderRepository } from '../repositories/order.repository';
+import { Order, OrderStatus } from '../models/order.model';
+import { Observable } from 'rxjs';
+ 
+@Injectable({
+  providedIn: 'root',
+})
+export class OrderService {
+  constructor(private orderRepository: OrderRepository) {}
+ 
+  getOrders(): Observable<Order[]> {
+    return this.orderRepository.getAll();
+  }
+ 
+  getOrderById(id: string): Observable<Order> {
+    return this.orderRepository.getById(id);
+  }
+ 
+  saveOrder(order: Order): Observable<Order> {
+    return this.orderRepository.create(order);
+  }
+ 
+  confirmOrder(id: string): Observable<void> {
+    return new Observable((observer) => {
+      this.orderRepository.getById(id).subscribe((order) => {
+        if (order.status === OrderStatus.PENDING) {
+          order.changeStatus(OrderStatus.CONFIRMED);
+          this.orderRepository.update(order).subscribe(() => {
+            observer.next();
+            observer.complete();
+          });
+        } else {
+          observer.error(new Error('Order cannot be confirmed'));
+        }
+      });
+    });
+  }
+}
+Application Layer
+The application layer orchestrates workflows and use cases, including interactions with external systems like payment processing.
+
+order-application.service.ts
+
+import { Injectable } from '@angular/core';
+import { OrderService } from '../domain/services/order.service';
+import { ProductService } from '../domain/services/product.service';
+import { CustomerService } from '../domain/services/customer.service';
+import { PaymentService } from '../infrastructure/services/payment.service';
+import { Order, OrderItem } from '../domain/models/order.model';
+import { Observable, forkJoin } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
+ 
+@Injectable({
+  providedIn: 'root',
+})
+export class OrderApplicationService {
+  constructor(
+    private orderService: OrderService,
+    private productService: ProductService,
+    private customerService: CustomerService,
+    private paymentService: PaymentService
+  ) {}
+ 
+  placeOrder(customerId: string, items: { productId: string; quantity: number }[]): Observable<void> {
+    return new Observable((observer) => {
+      this.customerService.getCustomerById(customerId).pipe(
+        switchMap((customer) => {
+          if (!customer) {
+            throw new Error('Customer not found');
+          }
+ 
+          const orderItems: OrderItem[] = [];
+          const productRequests = items.map((item) => 
+            this.productService.getProductById(item.productId)
+          );
+ 
+          return forkJoin(productRequests).pipe(
+            switchMap((products) => {
+              products.forEach((product, index) => {
+                if (product) {
+                  orderItems.push(new OrderItem(product.id, product.price, items[index].quantity));
+                }
+              });
+ 
+              const order = new Order(Date.now().toString(), customerId, orderItems, 0, OrderStatus.PENDING);
+              order.calculateTotalAmount();
+ 
+              return this.paymentService.processPayment(order.id, order.totalAmount).pipe(
+                switchMap(() => this.orderService.saveOrder(order)),
+                catchError((error) => {
+                  observer.error(new Error('Payment failed: ' + error.message));
+                  return [];
+                })
+              );
+            })
+          );
+        })
+      ).subscribe({
+        next: () => {
+          observer.next();
+          observer.complete();
+        },
+        error: (err) => observer.error(err),
+      });
+    });
+  }
+}
+Presentation Layer
+The presentation layer handles UI interactions.
+
+order-create.component.ts
+
+import { Component } from '@angular/core';
+import { OrderApplicationService } from '../application/order-application.service';
+ 
+@Component({
+  selector: 'app-order-create',
+  templateUrl: './order-create.component.html',
+  styleUrls: ['./order-create.component.css'],
+})
+export class OrderCreateComponent {
+  constructor(private orderApplicationService: OrderApplicationService) {}
+ 
+  placeOrder() {
+    const customerId = 'customer1';
+    const items = [{ productId: 'product1', quantity: 2 }];
+ 
+    this.orderApplicationService.placeOrder(customerId, items).subscribe({
+      next: () => console.log('Order placed successfully'),
+      error: (err) => console.error('Error placing order:', err),
+    });
+  }
+}
+order-create.component.html
+
+<div>
+  <button (click)="placeOrder()">Place Order</button>
+</div>
+Module Setup
+order.module.ts
+
+import { NgModule } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { OrderCreateComponent } from './components/order-create.component';
+import { OrderApplicationService } from './application/order-application.service';
+import { OrderService } from './domain/services/order.service';
+import { OrderRepository } from './domain/repositories/order.repository';
+import { ProductService } from '../product/domain/services/product.service';
+import { CustomerService } from '../customer/domain/services/customer.service';
+import { PaymentService } from '../infrastructure/services/payment.service';
+import { HttpClientModule } from '@angular/common/http';
+ 
+@NgModule({
+  declarations: [OrderCreateComponent],
+  imports: [CommonModule, HttpClientModule],
+  providers: [
+    OrderApplicationService,
+    OrderService,
+    OrderRepository,
+    ProductService,
+    CustomerService,
+    PaymentService,
+  ],
+})
+export class OrderModule {}
+5. Integration and Orchestration
+To see how everything comes together, let’s add the Product and Order modules to the main application module and ensure they interact correctly.
+
+app.module.ts
+
+import { NgModule } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { AppRoutingModule } from './app-routing.module';
+import { AppComponent } from './app.component';
+import { ProductModule } from './product/product.module';
+import { OrderModule } from './order/order.module';
+ 
+@NgModule({
+  declarations: [
+    AppComponent
+  ],
+  imports: [
+    BrowserModule,
+    AppRoutingModule,
+    ProductModule,
+    OrderModule
+  ],
+  providers: [],
+  bootstrap: [AppComponent]
+})
+export class AppModule { }
+Principles and Rules for Organizing Code
+Separation of Concerns:
+
+Domain Services: Contain business logic specific to the domain. They operate on domain entities and enforce business rules.
+Application Layer: Coordinates tasks, manages application workflows, and handles use cases. It orchestrates multiple domain services and manages interactions with other parts of the application, such as the presentation layer or external services.
+Single Responsibility Principle:
+
+Domain Services: Should only have one reason to change, which is the business logic they encapsulate.
+Application Layer: Should only have one reason to change, which is the application workflows and use cases it manages.
+Use Case Oriented:
+Application Layer: Focuses on implementing use cases or user stories. Each method represents a distinct use case.
+Domain Services: Focuses on implementing domain-specific operations that enforce business rules.
+Interaction with External Systems:
+
+Application Layer: Handles interactions with external systems, such as other microservices, external APIs, or user interfaces.
+Domain Services: Should be insulated from external system details. They should only interact with repositories or other domain services.
+Complex Orchestration:
+
+Application Layer: Manages complex orchestration involving multiple domain services, external systems, or both. This includes managing transactions, handling errors, and coordinating multiple steps.
+Domain Services: Perform single, focused operations related to the domain logic.
+Applying the Principles: Example Analysis
+Let’s analyze the placeOrder method and why it belongs to the Application Layer.
+
+Method: placeOrder(customerId: string, items: { productId: string; quantity: number }[]): Observable<void>
+
+Responsibilities and Actions:
+Validating Customer:
+
+Retrieves the customer from the CustomerService.
+Ensures the customer exists (application-specific validation).
+Fetching Product Details:
+
+Retrieves product details for each item in the order.
+Uses ProductService to fetch product information.
+Creating Order:
+
+Aggregates order items and calculates the total amount.
+Constructs a new Order entity.
+Persisting Order:
+
+Saves the new order using OrderService.
+Principles Applied:
+Separation of Concerns:
+
+placeOrder involves orchestrating multiple services (CustomerService, ProductService, OrderService), which is a workflow responsibility, not a single domain concern.
+Single Responsibility Principle:
+
+The responsibility of placeOrder is managing the use case of placing an order, which is an application-level concern.
+Use Case Oriented:
+
+Placing an order is a high-level use case involving multiple steps and services, fitting the role of the Application Layer.
+Interaction with External Systems:
+
+Interacts with multiple services to fetch data and validate the order.
+Complex Orchestration:
+
+Coordinates the creation of the order by managing dependencies and orchestrating multiple steps.
+Diagrams
+High-Level Architecture
+graph TD
+  A[Component Layer]
+  B[Application Layer]
+  C[Domain Service: OrderService]
+  D[Domain Service: ProductService]
+  E[Domain Service: CustomerService]
+ 
+  F[Repository: OrderRepository]
+  G[Repository: ProductRepository]
+  H[External API: PaymentService]
+ 
+  A --> B
+  B --> C
+  B --> D
+  B --> E
+  B --> H
+  C --> F
+  D --> G
+Product and Order Interaction
+graph TD
+  A[OrderCreateComponent]
+  B[OrderApplicationService]
+  C[OrderService]
+  D[ProductService]
+  E[CustomerService]
+  F[OrderRepository]
+  G[ProductRepository]
+  H[PaymentService]
+ 
+  A --> B
+  B --> C
+  B --> D
+  B --> E
+  B --> H
+  C --> F
+  D --> G
