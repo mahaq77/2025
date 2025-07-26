@@ -1,0 +1,608 @@
+Angular 20 Shell & Micro Frontends Deep Dive with Native Federation & NGRXThis document provides a comprehensive guide to setting up an Angular 20 Shell application with two Micro Frontends (mfe-products and mfe-orders), leveraging Native Federation for dynamic loading and NGRX for shared state management and inter-MFE/Shell communication.Important Note: This guide provides code snippets for various files within an Angular CLI workspace. You will need to create an Angular workspace and projects using the Angular CLI, then populate the files as described. This is not a single runnable HTML/JS file but a blueprint for a multi-project Angular setup.1. Architecture Deep DiveThe Shell (Host) ApplicationRole: The main entry point for the user. It provides the overall layout, navigation, and common services.Responsibility: Dynamically loads and renders micro frontends based on routing or other triggers. It will host the primary NGRX store for shared application state.Native Federation: Configured as a host that defines remotes (the micro frontends) and shared libraries (e.g., Angular, NGRX) to avoid duplication.Micro Frontends (Remote Applications)Role: Independent, self-contained Angular applications that focus on specific business domains (e.g., Products, Orders).Responsibility: Developed, built, and deployed autonomously. They expose specific modules or components to the shell. They interact with the shared NGRX store for cross-cutting concerns.Native Federation: Configured as a remote that exposes its public API (modules, components) and also defines shared libraries, which must align with the host's shared configuration.Native Federation (ES6/Native Federation)Mechanism: Leverages standard ES modules and dynamic import() to load code from remote applications at runtime.Benefits:Decentralized Development: Teams can work on MFEs independently.Independent Deployment: MFEs can be deployed without redeploying the entire shell.Runtime Integration: MFEs are loaded on demand, reducing initial bundle size.Shared Dependencies: Avoids duplicating common libraries (like Angular, RxJS, NGRX) by sharing them at runtime.NGRX (State Management)Role: A robust pattern for managing application state in a predictable and reactive manner.Cross-MFE Communication: The primary mechanism for communication between the Shell and MFEs, and between different MFEs.Shared Store: The shell will own the root NGRX store. MFEs will dispatch actions to this store and select data from it. This provides a single source of truth for shared data.Actions: MFEs dispatch actions to signal events or state changes.Selectors: MFEs and the shell use selectors to read specific slices of the shared state.Effects: For side effects (e.g., API calls) that might be triggered by actions from any part of the application.2. PrerequisitesBefore you start, ensure you have:Node.js: Latest LTS version (e.g., 18.x or 20.x).Angular CLI: Installed globally.npm install -g @angular/cli@latest
+3. Step-by-Step SetupStep 1: Create the Angular WorkspaceOpen your terminal and create a new Angular workspace. We'll create it without an initial application so we can add our shell and micro frontends as separate projects.ng new mf-workspace --create-application=false
+cd mf-workspace
+Step 2: Generate the Shell (Host) Applicationng generate application shell --routing=true --style=scss
+Step 3: Generate Micro Frontend ApplicationsGenerate two micro frontends: mfe-products and mfe-orders.ng generate application mfe-products --routing=true --style=scss
+ng generate application mfe-orders --routing=true --style=scss
+Your angular.json will now have three projects defined.Step 4: Add Native Federation to All ProjectsFor each project, add the @angular-architects/native-federation package. This will modify your angular.json and create webpack.config.js files for each project.ng add @angular-architects/native-federation --project shell
+ng add @angular-architects/native-federation --project mfe-products
+ng add @angular-architects/native-federation --project mfe-orders
+Step 5: Install NGRX in the Shell (Host)We'll install NGRX in the shell project, as it will manage the shared state.ng add @ngrx/store --project shell
+ng add @ngrx/effects --project shell
+ng add @ngrx/store-devtools --project shell
+4. Code ImplementationNow, let's populate the necessary files for each project.A. Shell (Host) Application (projects/shell)This is the main application that orchestrates and loads the micro frontends.projects/shell/webpack.config.jsThis file configures Native Federation for the shell. It defines the remotes (MFEs) and the shared libraries.Crucially, note how the remotes are defined with their full HTTP URLs.const { withFederatedTypeScript } = require('@angular-architects/native-federation/webpack');
+
+module.exports = withFederatedTypeScript({
+  federationConfig: {
+    name: 'shell',
+    remotes: {
+      // Define the micro frontends it will load.
+      // These URLs would be the deployment URLs of your MFEs.
+      // For local development, you'd typically use localhost ports.
+      // Example:
+      // 'mfeProducts': 'http://localhost:4201/remoteEntry.json',
+      // 'mfeOrders': 'http://localhost:4202/remoteEntry.json',
+      //
+      // For demonstration, let's use hypothetical external URLs:
+      'mfeProducts': 'https://your-cdn.com/products-mfe/remoteEntry.json', // Example external URL
+      'mfeOrders': 'https://your-cdn.com/orders-mfe/remoteEntry.json',     // Example external URL
+    },
+    shared: {
+      // Define shared libraries to avoid duplication.
+      // These versions MUST be compatible across all federated apps.
+      "@angular/core": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@angular/common": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@angular/router": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@ngrx/store": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@ngrx/effects": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      // Add other common libraries like RxJS if used extensively
+      "rxjs": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      // Important: Ensure any shared NGRX actions/selectors are accessible.
+      // For this example, we'll access them via relative paths, but in a real app,
+      // you might have a dedicated shared library or expose them from the shell.
+    }
+  },
+  // Add other webpack configurations as needed
+});
+projects/shell/src/app/store/shared-data.actions.tsThese actions will be dispatched by MFEs and the shell to update shared state.import { createAction, props } from '@ngrx/store';
+
+export const updateSharedMessage = createAction(
+  '[Shared Data] Update Shared Message',
+  props<{ message: string }>()
+);
+
+export const incrementCounter = createAction(
+  '[Shared Data] Increment Counter'
+);
+
+export const decrementCounter = createAction(
+  '[Shared Data] Decrement Counter'
+);
+projects/shell/src/app/store/shared-data.reducer.tsThe reducer defines how the shared state changes in response to actions.import { createReducer, on } from '@ngrx/store';
+import { updateSharedMessage, incrementCounter, decrementCounter } from './shared-data.actions';
+
+export interface SharedState {
+  sharedMessage: string;
+  counter: number;
+}
+
+export const initialSharedState: SharedState = {
+  sharedMessage: 'Hello from Shell!',
+  counter: 0
+};
+
+export const sharedReducer = createReducer(
+  initialSharedState,
+  on(updateSharedMessage, (state, { message }) => ({ ...state, sharedMessage: message })),
+  on(incrementCounter, (state) => ({ ...state, counter: state.counter + 1 })),
+  on(decrementCounter, (state) => ({ ...state, counter: state.counter - 1 }))
+);
+projects/shell/src/app/store/shared-data.selectors.tsSelectors provide a way to query specific slices of the shared state.import { createFeatureSelector, createSelector } from '@ngrx/store';
+
+// Define the root state interface for the shell
+export interface AppState {
+  shared: SharedState;
+  // ... other shell-specific states if any
+}
+
+export const selectSharedState = createFeatureSelector<AppState, SharedState>('shared');
+
+export const selectSharedMessage = createSelector(
+  selectSharedState,
+  (state: SharedState) => state.sharedMessage
+);
+
+export const selectCounter = createSelector(
+  selectSharedState,
+  (state: SharedState) => state.counter
+);
+projects/shell/src/app/app.module.tsThis module sets up the root NGRX store for the shared state.import { NgModule, isDevMode } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { StoreModule } from '@ngrx/store';
+import { EffectsModule } from '@ngrx/effects';
+import { StoreDevtoolsModule } from '@ngrx/store-devtools';
+
+import { AppRoutingModule } from './app-routing.module';
+import { AppComponent } from './app.component';
+import { sharedReducer } from './store/shared-data.reducer'; // Import the shared reducer
+
+@NgModule({
+  declarations: [
+    AppComponent
+  ],
+  imports: [
+    BrowserModule,
+    AppRoutingModule,
+    // Configure the root store with the shared reducer
+    StoreModule.forRoot({
+      shared: sharedReducer // 'shared' is the key for this slice of state
+    }),
+    EffectsModule.forRoot([]), // Add any root effects here
+    StoreDevtoolsModule.instrument({ maxAge: 25, logOnly: !isDevMode() }) // NGRX DevTools for debugging
+  ],
+  providers: [],
+  bootstrap: [AppComponent]
+})
+export class AppModule { }
+projects/shell/src/app/app-routing.module.tsThis module defines the routes for lazy loading the micro frontends.import { NgModule } from '@angular/core';
+import { RouterModule, Routes } from '@angular/router';
+import { loadRemoteModule } from '@angular-architects/native-federation';
+
+const routes: Routes = [
+  {
+    path: '',
+    redirectTo: 'home',
+    pathMatch: 'full'
+  },
+  {
+    path: 'home',
+    component: AppComponent // Or a dedicated home component
+  },
+  {
+    path: 'products',
+    loadChildren: () =>
+      loadRemoteModule('mfeProducts', './Module').then(m => m.ProductsModule)
+  },
+  {
+    path: 'orders',
+    loadChildren: () =>
+      loadRemoteModule('mfeOrders', './Module').then(m => m.OrdersModule)
+  },
+  // Catch-all for unknown routes
+  {
+    path: '**',
+    redirectTo: 'home'
+  }
+];
+
+@NgModule({
+  imports: [RouterModule.forRoot(routes)],
+  exports: [RouterModule]
+})
+export class AppRoutingModule { }
+projects/shell/src/app/app.component.tsThe main shell component with navigation and interaction with the shared NGRX store.import { Component } from '@angular/core';
+import { Store } from '@ngrx/store';
+import { Observable } from 'rxjs';
+import { updateSharedMessage, incrementCounter, decrementCounter } from './store/shared-data.actions';
+import { selectSharedMessage, selectCounter } from './store/shared-data.selectors';
+
+@Component({
+  selector: 'app-root',
+  template: `
+    <div class="min-h-screen bg-gray-100 font-sans text-gray-800 flex flex-col">
+      <!-- Header -->
+      <header class="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 shadow-lg">
+        <div class="container mx-auto flex justify-between items-center">
+          <h1 class="text-3xl font-extrabold tracking-tight">
+            <a routerLink="/home" class="hover:text-blue-200 transition-colors duration-300">Angular Micro Frontend Shell</a>
+          </h1>
+          <nav>
+            <ul class="flex space-x-6">
+              <li><a routerLink="/home" class="text-lg hover:text-blue-200 transition-colors duration-300 rounded-md px-3 py-1">Home</a></li>
+              <li><a routerLink="/products" class="text-lg hover:text-blue-200 transition-colors duration-300 rounded-md px-3 py-1">Products MFE</a></li>
+              <li><a routerLink="/orders" class="text-lg hover:text-blue-200 transition-colors duration-300 rounded-md px-3 py-1">Orders MFE</a></li>
+            </ul>
+          </nav>
+        </div>
+      </header>
+
+      <!-- Main Content Area -->
+      <main class="flex-grow container mx-auto p-6">
+        <div class="bg-white rounded-xl shadow-xl p-8 mb-8">
+          <h2 class="text-2xl font-bold text-blue-700 mb-4">Shell Control Panel</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Shared Message Section -->
+            <div class="bg-blue-50 p-6 rounded-lg shadow-inner">
+              <h3 class="text-xl font-semibold text-blue-600 mb-3">Shared Message</h3>
+              <p class="text-gray-700 mb-3">Current Shared Message: <span class="font-bold text-blue-800">{{ sharedMessage$ | async }}</span></p>
+              <input
+                type="text"
+                [(ngModel)]="shellMessageInput"
+                placeholder="Enter new shared message"
+                class="w-full p-3 border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 mb-3"
+              />
+              <button
+                (click)="updateMessage()"
+                class="w-full bg-blue-600 text-white py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300 font-semibold text-lg"
+              >
+                Update Shared Message
+              </button>
+            </div>
+
+            <!-- Counter Section -->
+            <div class="bg-green-50 p-6 rounded-lg shadow-inner">
+              <h3 class="text-xl font-semibold text-green-600 mb-3">Shared Counter</h3>
+              <p class="text-gray-700 mb-3">Current Counter: <span class="font-bold text-green-800 text-2xl">{{ counter$ | async }}</span></p>
+              <div class="flex space-x-4">
+                <button
+                  (click)="increment()"
+                  class="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg shadow-md hover:bg-green-700 transition-colors duration-300 font-semibold text-lg"
+                >
+                  Increment
+                </button>
+                <button
+                  (click)="decrement()"
+                  class="flex-1 bg-red-600 text-white py-3 px-6 rounded-lg shadow-md hover:bg-red-700 transition-colors duration-300 font-semibold text-lg"
+                >
+                  Decrement
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Router Outlet for Micro Frontends -->
+        <div class="bg-white rounded-xl shadow-xl p-8">
+          <router-outlet></router-outlet>
+        </div>
+      </main>
+
+      <!-- Footer -->
+      <footer class="bg-gray-800 text-white p-4 text-center text-sm">
+        <div class="container mx-auto">
+          &copy; {{ currentYear }} Angular Micro Frontend Demo. All rights reserved.
+        </div>
+      </footer>
+    </div>
+  `
+})
+export class AppComponent {
+  title = 'shell';
+  currentYear = new Date().getFullYear();
+
+  // NGRX Selectors
+  sharedMessage$: Observable<string>;
+  counter$: Observable<number>;
+
+  // Input for updating shared message
+  shellMessageInput: string = '';
+
+  constructor(private store: Store) {
+    // Select data from the shared NGRX store
+    this.sharedMessage$ = this.store.select(selectSharedMessage);
+    this.counter$ = this.store.select(selectCounter);
+
+    // Initialize input with current shared message
+    this.sharedMessage$.subscribe(msg => this.shellMessageInput = msg);
+  }
+
+  updateMessage(): void {
+    // Dispatch action to update shared message
+    this.store.dispatch(updateSharedMessage({ message: this.shellMessageInput }));
+  }
+
+  increment(): void {
+    // Dispatch action to increment counter
+    this.store.dispatch(incrementCounter());
+  }
+
+  decrement(): void {
+    // Dispatch action to decrement counter
+    this.store.dispatch(decrementCounter());
+  }
+}
+projects/shell/src/styles.scssAdd Tailwind CSS directives.@tailwind base;
+@tailwind components;
+@tailwind utilities;
+B. Products Micro Frontend (projects/mfe-products)This MFE will display product-related information and interact with the shared NGRX store.projects/mfe-products/webpack.config.jsThis file exposes the ProductsModule to the shell.const { withFederatedTypeScript } = require('@angular-architects/native-federation/webpack');
+
+module.exports = withFederatedTypeScript({
+  federationConfig: {
+    name: 'mfeProducts',
+    exposes: {
+      './Module': './projects/mfe-products/src/app/products/products.module.ts',
+      // You could also expose individual components if needed:
+      // './Component': './projects/mfe-products/src/app/products/products.component.ts',
+    },
+    shared: {
+      // These must match the shared libraries in the shell's webpack.config.js
+      "@angular/core": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@angular/common": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@angular/router": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@ngrx/store": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@ngrx/effects": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "rxjs": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+    }
+  },
+  // Add other webpack configurations as needed
+});
+projects/mfe-products/src/app/products/products.module.tsThe feature module for the products MFE.import { NgModule } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterModule, Routes } from '@angular/router';
+import { FormsModule } from '@angular/forms'; // Required for ngModel
+
+import { ProductsComponent } from './products.component';
+
+const routes: Routes = [
+  { path: '', component: ProductsComponent }
+];
+
+@NgModule({
+  declarations: [
+    ProductsComponent
+  ],
+  imports: [
+    CommonModule,
+    FormsModule, // Add FormsModule
+    RouterModule.forChild(routes)
+  ]
+})
+export class ProductsModule { }
+projects/mfe-products/src/app/products/products.component.tsThis component interacts with the shared NGRX store.import { Component, OnInit } from '@angular/core';
+import { Store } from '@ngrx/store';
+import { Observable } from 'rxjs';
+import { updateSharedMessage, incrementCounter, decrementCounter } from '../../../../shell/src/app/store/shared-data.actions';
+import { selectSharedMessage, selectCounter } from '../../../../shell/src/app/store/shared-data.selectors';
+import { AppState } from '../../../../shell/src/app/store/shared-data.selectors'; // Import AppState for typing
+
+@Component({
+  selector: 'app-products',
+  template: `
+    <div class="bg-purple-50 rounded-xl shadow-lg p-8">
+      <h2 class="text-3xl font-bold text-purple-700 mb-6">Products Micro Frontend</h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Shared Message Section -->
+        <div class="bg-purple-100 p-6 rounded-lg shadow-inner">
+          <h3 class="text-xl font-semibold text-purple-600 mb-3">Shared Message from Shell</h3>
+          <p class="text-gray-700 mb-3">Current Shared Message: <span class="font-bold text-purple-800">{{ sharedMessage$ | async }}</span></p>
+          <input
+            type="text"
+            [(ngModel)]="mfeMessageInput"
+            placeholder="Enter new message from Products MFE"
+            class="w-full p-3 border border-purple-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 mb-3"
+          />
+          <button
+            (click)="updateMessage()"
+            class="w-full bg-purple-600 text-white py-3 px-6 rounded-lg shadow-md hover:bg-purple-700 transition-colors duration-300 font-semibold text-lg"
+          >
+            Update Shared Message (from Products)
+          </button>
+        </div>
+
+        <!-- Counter Section -->
+        <div class="bg-indigo-100 p-6 rounded-lg shadow-inner">
+          <h3 class="text-xl font-semibold text-indigo-600 mb-3">Shared Counter from Shell</h3>
+          <p class="text-gray-700 mb-3">Current Counter: <span class="font-bold text-indigo-800 text-2xl">{{ counter$ | async }}</span></p>
+          <div class="flex space-x-4">
+            <button
+              (click)="increment()"
+              class="flex-1 bg-indigo-600 text-white py-3 px-6 rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-300 font-semibold text-lg"
+            >
+              Increment (from Products)
+            </button>
+            <button
+              (click)="decrement()"
+              class="flex-1 bg-pink-600 text-white py-3 px-6 rounded-lg shadow-md hover:bg-pink-700 transition-colors duration-300 font-semibold text-lg"
+            >
+              Decrement (from Products)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-8">
+        <h3 class="text-2xl font-semibold text-purple-700 mb-4">Product List</h3>
+        <ul class="list-disc list-inside space-y-2 text-gray-700">
+          <li>Laptop Pro X - $1200</li>
+          <li>Mechanical Keyboard - $150</li>
+          <li>Wireless Mouse - $75</li>
+          <li>4K Monitor - $450</li>
+        </ul>
+      </div>
+    </div>
+  `
+})
+export class ProductsComponent implements OnInit {
+  sharedMessage$: Observable<string>;
+  counter$: Observable<number>;
+  mfeMessageInput: string = '';
+
+  // IMPORTANT: The path to shared-data.actions/selectors from the MFE
+  // is shown here as a relative path (`../../../../shell/src/app/store/...`).
+  // In a real-world, deployed scenario, you would typically:
+  // 1. Expose these actions/selectors from the shell's webpack.config.js
+  //    (e.g., `exposes: { './SharedStore': './projects/shell/src/app/store' }`)
+  // 2. Then import them in the MFE like: `import { ... } from 'shell/SharedStore';`
+  // This relative path approach works for local development within the same workspace.
+
+  constructor(private store: Store<AppState>) { // Use AppState for type safety
+    this.sharedMessage$ = this.store.select(selectSharedMessage);
+    this.counter$ = this.store.select(selectCounter);
+  }
+
+  ngOnInit(): void {
+    this.sharedMessage$.subscribe(msg => this.mfeMessageInput = msg);
+  }
+
+  updateMessage(): void {
+    this.store.dispatch(updateSharedMessage({ message: this.mfeMessageInput }));
+  }
+
+  increment(): void {
+    this.store.dispatch(incrementCounter());
+  }
+
+  decrement(): void {
+    this.store.dispatch(decrementCounter());
+  }
+}
+projects/mfe-products/src/styles.scssAdd Tailwind CSS directives.@tailwind base;
+@tailwind components;
+@tailwind utilities;
+C. Orders Micro Frontend (projects/mfe-orders)This MFE will display order-related information and also interact with the shared NGRX store.projects/mfe-orders/webpack.config.jsThis file exposes the OrdersModule to the shell.const { withFederatedTypeScript } = require('@angular-architects/native-federation/webpack');
+
+module.exports = withFederatedTypeScript({
+  federationConfig: {
+    name: 'mfeOrders',
+    exposes: {
+      './Module': './projects/mfe-orders/src/app/orders/orders.module.ts',
+    },
+    shared: {
+      // These must match the shared libraries in the shell's webpack.config.js
+      "@angular/core": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@angular/common": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@angular/router": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@ngrx/store": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@ngrx/effects": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "rxjs": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+    }
+  },
+  // Add other webpack configurations as needed
+});
+projects/mfe-orders/src/app/orders/orders.module.tsThe feature module for the orders MFE.import { NgModule } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterModule, Routes } from '@angular/router';
+import { FormsModule } from '@angular/forms'; // Required for ngModel
+
+import { OrdersComponent } from './orders.component';
+
+const routes: Routes = [
+  { path: '', component: OrdersComponent }
+];
+
+@NgModule({
+  declarations: [
+    OrdersComponent
+  ],
+  imports: [
+    CommonModule,
+    FormsModule, // Add FormsModule
+    RouterModule.forChild(routes)
+  ]
+})
+export class OrdersModule { }
+projects/mfe-orders/src/app/orders/orders.component.tsThis component also interacts with the shared NGRX store.import { Component, OnInit } from '@angular/core';
+import { Store } from '@ngrx/store';
+import { Observable } from 'rxjs';
+import { updateSharedMessage, incrementCounter, decrementCounter } from '../../../../shell/src/app/store/shared-data.actions';
+import { selectSharedMessage, selectCounter } from '../../../../shell/src/app/store/shared-data.selectors';
+import { AppState } from '../../../../shell/src/app/store/shared-data.selectors'; // Import AppState for typing
+
+@Component({
+  selector: 'app-orders',
+  template: `
+    <div class="bg-orange-50 rounded-xl shadow-lg p-8">
+      <h2 class="text-3xl font-bold text-orange-700 mb-6">Orders Micro Frontend</h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Shared Message Section -->
+        <div class="bg-orange-100 p-6 rounded-lg shadow-inner">
+          <h3 class="text-xl font-semibold text-orange-600 mb-3">Shared Message from Shell</h3>
+          <p class="text-gray-700 mb-3">Current Shared Message: <span class="font-bold text-orange-800">{{ sharedMessage$ | async }}</span></p>
+          <input
+            type="text"
+            [(ngModel)]="mfeMessageInput"
+            placeholder="Enter new message from Orders MFE"
+            class="w-full p-3 border border-orange-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 mb-3"
+          />
+          <button
+            (click)="updateMessage()"
+            class="w-full bg-orange-600 text-white py-3 px-6 rounded-lg shadow-md hover:bg-orange-700 transition-colors duration-300 font-semibold text-lg"
+          >
+            Update Shared Message (from Orders)
+          </button>
+        </div>
+
+        <!-- Counter Section -->
+        <div class="bg-teal-100 p-6 rounded-lg shadow-inner">
+          <h3 class="text-xl font-semibold text-teal-600 mb-3">Shared Counter from Shell</h3>
+          <p class="text-gray-700 mb-3">Current Counter: <span class="font-bold text-teal-800 text-2xl">{{ counter$ | async }}</span></p>
+          <div class="flex space-x-4">
+            <button
+              (click)="increment()"
+              class="flex-1 bg-teal-600 text-white py-3 px-6 rounded-lg shadow-md hover:bg-teal-700 transition-colors duration-300 font-semibold text-lg"
+            >
+              Increment (from Orders)
+            </button>
+            <button
+              (click)="decrement()"
+              class="flex-1 bg-cyan-600 text-white py-3 px-6 rounded-lg shadow-md hover:bg-cyan-700 transition-colors duration-300 font-semibold text-lg"
+            >
+              Decrement (from Orders)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-8">
+        <h3 class="text-2xl font-semibold text-orange-700 mb-4">Recent Orders</h3>
+        <ul class="list-disc list-inside space-y-2 text-gray-700">
+          <li>Order #1001: Laptop Pro X (2 items) - Status: Shipped</li>
+          <li>Order #1002: Wireless Mouse (1 item) - Status: Processing</li>
+          <li>Order #1003: Mechanical Keyboard (1 item) - Status: Delivered</li>
+        </ul>
+      </div>
+    </div>
+  `
+})
+export class OrdersComponent implements OnInit {
+  sharedMessage$: Observable<string>;
+  counter$: Observable<number>;
+  mfeMessageInput: string = '';
+
+  constructor(private store: Store<AppState>) {
+    this.sharedMessage$ = this.store.select(selectSharedMessage);
+    this.counter$ = this.store.select(selectCounter);
+  }
+
+  ngOnInit(): void {
+    this.sharedMessage$.subscribe(msg => this.mfeMessageInput = msg);
+  }
+
+  updateMessage(): void {
+    this.store.dispatch(updateSharedMessage({ message: this.mfeMessageInput }));
+  }
+
+  increment(): void {
+    this.store.dispatch(incrementCounter());
+  }
+
+  decrement(): void {
+    this.store.dispatch(decrementCounter());
+  }
+}
+projects/mfe-orders/src/styles.scssAdd Tailwind CSS directives.@tailwind base;
+@tailwind components;
+@tailwind utilities;
+5. Running the Applications (Local Development)To run this setup locally, you need to start each application on a different port.Open three separate terminal windows in your mf-workspace root directory.In Terminal 1 (Shell):ng serve shell --port 4200 --open
+In Terminal 2 (Products MFE):ng serve mfe-products --port 4201
+In Terminal 3 (Orders MFE):ng serve mfe-orders --port 4202
+Once all three applications are running, your browser should open to http://localhost:4200 (the shell application).Important: For local development, you will temporarily change the remotes URLs in projects/shell/webpack.config.js to http://localhost:4201/remoteEntry.json and http://localhost:4202/remoteEntry.json respectively. Remember to change them back to your production/staging URLs for deployment.6. Deep Dive on Communicationa) NGRX for Shared State and Cross-MFE Communication (Primary Method)As demonstrated in the code, NGRX is the most robust way to handle communication:Shell to MFE: The shell dispatches updateSharedMessage or incrementCounter actions. MFEs subscribe to selectSharedMessage or selectCounter and react to changes.MFE to Shell: An MFE (e.g., mfe-products) dispatches updateSharedMessage or incrementCounter actions. The shell (and other MFEs) subscribe to the same selectors and react.MFE to MFE: MFE A dispatches an action. MFE B (and the shell) subscribe to the relevant selector and react to the state change.This pattern ensures a single source of truth and predictable state changes.b) Component Communication (Input/Output)While less common for routing-based micro frontends, if you were to embed a micro frontend component directly into a shell component (e.g., using a custom element or dynamic component loading without routing), you could use standard @Input() and @Output() decorators.Example (Conceptual, not in above code):// In MFE Component
+@Component(...)
+export class MyMfeComponent {
+  @Input() dataFromShell: any;
+  @Output() eventToShell = new EventEmitter<any>();
+
+  sendData() {
+    this.eventToShell.emit('Data from MFE');
+  }
+}
+
+// In Shell Component
+import { loadRemoteModule } from '@angular-architects/native-federation';
+// ...
+async loadMfeComponent() {
+  const { MyMfeComponent } = await loadRemoteModule('myMfe', './MyComponent');
+  // Then dynamically create and attach MyMfeComponent to a view container,
+  // passing inputs and subscribing to outputs. This is more complex than routing.
+}
+c) Shared Service / Event Bus (Alternative)For specific, non-state-driven events, a shared service acting as an event bus can be used. This service would need to be provided at the root level of the shell and shared via Native Federation.Example (Conceptual, not in above code):// projects/shell/src/app/shared/event-bus.service.ts
+import { Injectable } from '@angular/core';
+import { Subject, Observable } from 'rxjs';
+
+@Injectable({ providedIn: 'root' })
+export class EventBusService {
+  private eventSubject = new Subject<any>();
+  emit(event: any): void { this.eventSubject.next(event); }
+  on(): Observable<any> { return this.eventSubject.asObservable(); }
+}
+
+// In MFE or Shell component
+constructor(private eventBus: EventBusService) {
+  this.eventBus.on().subscribe(event => { /* handle event */ });
+}
+sendMessage() {
+  this.eventBus.emit({ type: 'CUSTOM_EVENT', payload: 'Hello!' });
+}
+This approach is simpler for transient events but less suitable for managing complex, persistent application state compared to NGRX.7. Important ConsiderationsCORS (Cross-Origin Resource Sharing): When running MFEs on different ports or domains, you might encounter CORS issues. Ensure your development servers (and production servers) are configured to allow CORS requests from your shell's domain.Deployment: For production, each micro frontend will be built and deployed independently to its own static hosting (e.g., S3, Azure Blob Storage, CDN). The shell will then reference these deployed URLs in its webpack.config.js.Version Compatibility: Maintaining compatible versions of shared libraries (Angular, NGRX, RxJS) across all federated applications is crucial. strictVersion: true and requiredVersion: 'auto' in webpack.config.js help enforce this.Error Handling: Implement robust error handling for loadRemoteModule in case a micro frontend fails to load or is unavailable.Build Process: Your CI/CD pipeline will need to build and deploy each MFE and the shell independently.Styling: Be mindful of CSS conflicts between MFEs. Using scoped CSS (like Angular's component styles) or utility-first frameworks like Tailwind CSS (as used here) can help.Performance: Lazy loading MFEs is critical for performance. Consider prefetching strategies for frequently accessed MFEs.This detailed guide provides a solid foundation for your Angular 20 Shell and Micro Frontends architecture. By following these steps and understanding the underlying concepts, you can build scalable and maintainable applications.

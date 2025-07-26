@@ -1,0 +1,98 @@
+Step 1: Check your remote’s config
+In the remote’s angular.json / project.json (or webpack.config.js if still on Webpack):
+
+Make sure it’s really generating remoteEntry.json or remoteEntry.js
+
+Correct public path / serve URL
+
+Angular 17+ esbuild + native federation doesn’t produce remoteEntry.js automatically like Webpack; you need to:
+
+Use @angular-architects/native-federation builder OR
+
+Angular’s built-in federation with config (since Angular 16+)
+
+
+Step 2: Shell config
+In shell’s angular.json / project.json → under "architect" → "build":
+
+If using native federation + esbuild, you should have:
+
+ "options": {
+  "federation": {
+    "remotes": {
+      "mfe1": "http://localhost:4201/remoteEntry.json"
+    }
+  }
+}
+Important: esbuild-native-federation loads from remoteEntry.json (or .js if built that way).
+ Step 3: Import remote module correctly
+In shell app, to load remote: 
+const module = await window['mfe1'].get('./YourExposedModule');
+const YourExposedModule = module().then((m: any) => m.YourExposedModule);
+
+If using Angular router lazy loading:
+{
+  path: 'remote',
+  loadChildren: () =>
+    loadRemoteModule({
+      type: 'manifest',
+      remoteName: 'mfe1',
+      exposedModule: './YourExposedModule'
+    }).then(m => m.YourExposedModule)
+}
+The exposedModule string must exactly match the key in your remote’s exposes.
+
+Step 4: Check the remote’s exposed modules
+In remote’s config (e.g., webpack.config.js or federation config): 
+
+exposes: {
+  './YourExposedModule': './src/app/your-exposed/your-exposed.module.ts',
+}
+ The left key string must exactly match what you call in exposedModule.
+ ================================================================================================
+ 
+ 
+ Example full working config (Angular 17+, esbuild, native federation)
+✅ Remote: mfe1
+
+// mfe1 angular.json
+"options": {
+  "federation": {
+    "name": "mfe1",
+    "exposes": {
+      "./YourExposedModule": "./src/app/your-exposed/your-exposed.module.ts"
+    }
+  }
+}
+
+Make sure it serves at:
+http://localhost:4201/remoteEntry.json
+
+
+ Shell
+// shell angular.json
+"options": {
+  "federation": {
+    "remotes": {
+      "mfe1": "http://localhost:4201/remoteEntry.json"
+    }
+  }
+}
+
+ Shell routing (Angular):
+ 
+import { loadRemoteModule } from '@angular-architects/native-federation';
+
+const routes: Routes = [
+  {
+    path: 'remote',
+    loadChildren: () =>
+      loadRemoteModule({
+        type: 'manifest',
+        remoteName: 'mfe1',
+        exposedModule: './YourExposedModule'
+      }).then(m => m.YourExposedModule)
+  }
+];
+
+

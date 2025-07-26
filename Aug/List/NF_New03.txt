@@ -1,0 +1,54 @@
+const { withFederatedTypeScript } = require('@angular-architects/native-federation/webpack');
+
+module.exports = withFederatedTypeScript({
+  federationConfig: {
+    name: 'shell',
+    remotes: {
+      'mfeDashboard': 'http://localhost:4201/remoteEntry.json', // For local development or another MFE
+      // This is where you'd reference the external, deployed MFE's HTTP address:
+      'mfeProducts': 'https://staging.yourcompany.com/products-mfe/remoteEntry.json',
+    },
+    shared: {
+      "@angular/core": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@angular/common": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@angular/router": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      "@ngrx/store": { singleton: true, strictVersion: true, requiredVersion: 'auto' },
+      // ... other shared libraries
+    }
+  },
+  // Add other webpack configurations as needed
+});
+
+
+
+==============================================================
+And your projects/shell/src/app/app-routing.module.ts would remain the same:
+
+import { NgModule } from '@angular/core';
+import { RouterModule, Routes } from '@angular/router';
+import { loadRemoteModule } from '@angular-architects/native-federation';
+
+const routes: Routes = [
+  {
+    path: '',
+    redirectTo: 'dashboard',
+    pathMatch: 'full'
+  },
+  {
+    path: 'dashboard',
+    loadChildren: () =>
+      loadRemoteModule('mfeDashboard', './Module').then(m => m.DashboardModule)
+  },
+  {
+    path: 'products',
+    loadChildren: () =>
+      loadRemoteModule('mfeProducts', './Module').then(m => m.ProductsModule)
+  },
+  // Add more routes for other MFEs
+];
+
+@NgModule({
+  imports: [RouterModule.forRoot(routes)],
+  exports: [RouterModule]
+})
+export class AppRoutingModule { }

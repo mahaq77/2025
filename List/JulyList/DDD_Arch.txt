@@ -74,3 +74,6 @@ While the macro architecture is the glue between your micro apps, the micro arch
 
 It's not an "either/or thing"!
 Mixing those approaches can also be a good idea. For instance, you could go with Hyperlinks for the general routing and when you have to display widgets from one microfrontend within an other one, you could choose for libraries or web components.
+
+
+https://falberthen.github.io/posts/ecommerceddd-pt6/

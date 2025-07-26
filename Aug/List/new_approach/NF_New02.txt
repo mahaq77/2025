@@ -1,0 +1,184 @@
+Absolutely! Let’s extend your new Angular 20 standalone + app.config.ts pattern with:
+
+✅ HttpClient → data API access
+✅ Signal Store → state management (modern reactive)
+✅ Angular Material → base + theming ready
+✅ Add design for future modules & theme switching
+
+This will make your app production-grade & scalable, fully ready to add futuristic dark/light themes.
+
+Step 1: Add providers in app.config.ts
+
+src/app/app.config.ts
+import { ApplicationConfig } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { routes } from './app.routes';
+// If you use Angular Signal Store: import your store provider(s) here
+// import { provideStore } from '@ngrx/signals'; // optional, depends on setup
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideRouter(routes),
+
+    // ✅ HTTP
+    provideHttpClient(
+      // Optional interceptors:
+      withInterceptors([
+        (req, next) => {
+          // Example interceptor: add auth header
+          const cloned = req.clone({
+            setHeaders: { Authorization: `Bearer fake-token` }
+          });
+          return next(cloned);
+        }
+      ])
+    ),
+
+    // ✅ Signal Store providers, if you create custom stores:
+    // e.g., UserStore, ThemeStore → already injectable
+
+    // ✅ Future modules/providers
+    // provideStore(...), provideAnimations(), etc.
+  ]
+};
+
+
+ Step 2: Add Angular Material  ✅ Install:
+ng add @angular/material
+Pick typography & prebuilt themes — e.g., Indigo/Pink → we'll override later.
+ 
+Theming plan:  Create your own SCSS files:
+src/styles/
+ ├─ _dark-theme.scss
+ ├─ _light-theme.scss
+ └─ _default-theme.scss
+Dynamically apply themes by toggling CSS class on <body> or root.
+
+src/styles/_dark-theme.scss
+@use '@angular/material' as mat;
+@include mat.core();
+
+$dark-primary: mat.define-palette(mat.$indigo-palette);
+$dark-accent: mat.define-palette(mat.$pink-palette, A200, A100, A400);
+$dark-theme: mat.define-dark-theme((
+  color: (
+    primary: $dark-primary,
+    accent: $dark-accent,
+  ),
+  typography: mat.define-typography-config(),
+));
+
+.dark-theme {
+  @include mat.all-component-themes($dark-theme);
+}
+
+Repeat similarly for _light-theme.scss & _default-theme.scss.
+src/styles.scss
+@import 'styles/dark-theme';
+@import 'styles/light-theme';
+@import 'styles/default-theme';
+
+// Set default theme
+body {
+  @extend .default-theme;
+}
+
+Step 3: Add ThemeStore (Signal Store)  To switch themes dynamically.
+ src/app/stores/theme.store.ts
+import { Injectable, signal } from '@angular/core';
+
+export type ThemeType = 'dark' | 'light' | 'default';
+
+@Injectable({ providedIn: 'root' })
+export class ThemeStore {
+  private _theme = signal<ThemeType>('default');
+  readonly theme = this._theme.asReadonly();
+
+  setTheme(theme: ThemeType) {
+    this._theme.set(theme);
+    document.body.className = '';  // clear
+    document.body.classList.add(`${theme}-theme`);
+    localStorage.setItem('theme', theme);
+  }
+
+  loadFromLocalStorage() {
+    const saved = localStorage.getItem('theme') as ThemeType;
+    if (saved) this.setTheme(saved);
+  }
+}
+
+ Step 4: Use ThemeStore in AppComponent
+import { Component, OnInit } from '@angular/core';
+import { RouterOutlet, RouterLink } from '@angular/router';
+import { ThemeStore } from './stores/theme.store';
+import { NgIf } from '@angular/common';
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [RouterOutlet, RouterLink, NgIf],
+  template: `
+    <h1>My Angular 20 App with Themes</h1>
+    <nav>
+      <a routerLink="/">Home</a> |
+      <a routerLink="/posts">Posts</a>
+    </nav>
+
+    <select (change)="changeTheme($event.target.value)">
+      <option value="default">Default</option>
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+    </select>
+
+    <router-outlet></router-outlet>
+  `
+})
+export class AppComponent implements OnInit {
+  constructor(private themeStore: ThemeStore) {}
+  ngOnInit() { this.themeStore.loadFromLocalStorage(); }
+
+  changeTheme(theme: string) {
+    this.themeStore.setTheme(theme as any);
+  }
+}
+
+Step 5: Ready for future modules
+In app.config.ts you can add:
+
+// provideAnimations(),
+// provideHttpClient(withFetch()), // if you use fetch
+// provideServiceWorker(),
+// provideStore({ user: userReducer }),
+// etc.
+
+
+New structure:
+src/app/
+ ├─ app.component.ts
+ ├─ app.routes.ts
+ ├─ app.config.ts
+ └─ stores/
+     ├─ user.store.ts
+     └─ theme.store.ts
+src/styles/
+ ├─ _dark-theme.scss
+ ├─ _light-theme.scss
+ └─ _default-theme.scss
+src/main.ts
+
+
+Fully standalone Angular 20
+
+Modern providers model in app.config.ts
+
+HttpClient with optional interceptors
+
+Signal Store for user & theming
+
+Angular Material ready with custom themes
+
+Future modules: just add to app.config.ts
+
+
+PowerPoint slides for business + tech overview
