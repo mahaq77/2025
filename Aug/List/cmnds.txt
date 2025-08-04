@@ -1,0 +1,2 @@
+
+npx http-server dist/mfe3/browser --port 8080 --host 172.31.32.1
