@@ -1,0 +1,620 @@
+A solid versioning strategy for your Angular library packages — especially when managing pre-production (pre-prod) to production (prod) releases — is crucial for stability, traceability, and efficient CI/CD. Below is a recommended versioning and release strategy tailored for Angular apps and libraries, particularly when moving from pre-prod to prod environments.
+
+✅ Goals of a Good Strategy
+
+Clearly separate pre-release and stable production versions
+
+Allow testing and QA teams to pin pre-release versions
+
+Prevent accidental upgrades to unstable builds
+
+Automate versioning and publishing through CI/CD pipelines
+
+
+Recommended Strategy: Semantic Versioning + Pre-Release Tags
+
+Angular (and npm) follows Semantic Versioning (SemVer)
+ with optional pre-release labels like -beta, -rc, etc.
+ 
+
+| Stage             | Example Version | Notes                                   |
+| ----------------- | --------------- | --------------------------------------- |
+| Development       | `1.2.0-alpha.0` | Internal dev builds, not shared widely  |
+| Pre-Prod/QA       | `1.2.0-beta.1`  | Shared for QA/staging testing           |
+| Release Candidate | `1.2.0-rc.0`    | Code freeze, ready for final validation |
+| Production        | `1.2.0`         | Stable release                          |
+
+
+How to Implement This
+1. Use npm Tags (critical)
+
+When publishing:
+# Pre-prod (staging/QA) release
+npm publish --tag beta
+
+# RC release
+npm publish --tag rc
+
+# Production release
+npm publish --tag latest
+
+
+Then
+# To install a beta package in pre-prod
+npm install your-lib@beta
+
+# RC install
+npm install your-lib@rc
+
+# Production consumers
+npm install your-lib
+
+Use Angular Package Versioning Consistently
+
+Match your internal Angular library versions with the app versions, or use independent versioning with clear documentation.
+
+Option A: Same versioning across app and libraries (easy to trace)
+
+Option B: Independent versions with changelogs and dependency matrix (more flexible but needs more coordination)
+
+Automate Versioning with CI/CD
+
+Use tools like:
+
+semantic-release
+ – automate version bumping, changelog, and publishing based on commit messages
+
+Lerna or Nx if managing multiple libraries in a monorepo
+
+GitHub Actions / GitLab CI pipelines to publish artifacts based on branch/tag
+
+Example: When merging to main, trigger a beta release. When merging a release/* branch or tag like v1.2.0, publish to prod.
+
+
+| Practice                       | Benefit                                               |
+| ------------------------------ | ----------------------------------------------------- |
+| Use `-beta`, `-rc` suffixes    | Clear separation of pre-release and production        |
+| Use `npm publish --tag`        | Prevent pre-release versions from polluting `@latest` |
+| Automate releases              | Reduce human error and increase traceability          |
+| Keep changelogs                | Track what's in each pre-prod and prod version        |
+| Use version constraints wisely | Avoid unwanted upgrades in pre-prod/prod environments |
+
+
+clean GitHub Actions CI/CD pipeline that:
+
+Builds and tests your Angular library
+
+Publishes pre-release versions (like -beta, -rc) with appropriate npm dist-tags
+
+Publishes stable releases to @latest
+
+Follows a branch/tag-based release trigger strategy
+
+✅ Setup Requirements
+
+Your Angular library is published to npm
+
+Your repo contains package.json with versioning
+
+A valid .npmrc file exists with auth token
+Environment has NPM_TOKEN stored in GitHub secrets
+
+
+
+Directory Structure
+Assume your repo has a standard structure like:
+/your-angular-lib
+  ├── projects/my-lib/
+  ├── package.json
+  ├── .npmrc
+  └── angular.json
+  
+GitHub Actions Workflow
+Create this file:
+.github/workflows/release.yml
+name: Release Library to NPM
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers for version tags like v1.2.3
+    branches:
+      - 'beta'  # Pre-prod branch for beta releases
+      - 'rc'    # RC releases
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Angular library
+        run: npm run build my-lib
+
+      - name: Test (optional)
+        run: npm test
+
+      - name: Publish to NPM (beta)
+        if: github.ref == 'refs/heads/beta'
+        run: npm publish --access public --tag beta
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to NPM (rc)
+        if: github.ref == 'refs/heads/rc'
+        run: npm publish --access public --tag rc
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to NPM (latest/stable)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "Publishing stable version..."
+          npm publish --access public --tag latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+
+.npmrc File (in root of repo) 
+//registry.npmjs.org/:_authToken=${NPM_TOKEN}
+
+How it works
+| Trigger                | Example                                    | What it Does                      |
+| ---------------------- | ------------------------------------------ | --------------------------------- |
+| Push to `beta` branch  | Commit on `beta`                           | Publishes version as `--tag beta` |
+| Push to `rc` branch    | Commit on `rc`                             | Publishes version as `--tag rc`   |
+| Tag push like `v1.2.0` | `git tag v1.2.0 && git push origin v1.2.0` | Publishes to `@latest`            |
+
+
+Versioning Flow Suggestion
+# For pre-release
+npm version 1.3.0-beta.0
+git push && git push --tags
+
+# For stable
+npm version 1.3.0
+git push && git push --tags
+
+automate versioning with tools like standard-version  or semantic-release.
+
+This GitHub Actions setup gives you:
+Pre-prod (beta/rc) and prod (latest) release flows
+Tag-based stable releases
+Safe and clear release channels using npm dist-tags
+
+
+Two Popular Tools:
+1. ✅ standard-version
+
+Manual release trigger (dev controls when to release)
+
+Conventional commits required
+
+Automatically bumps version, generates changelog, and tags a release
+
+Doesn’t publish to npm by default (you do that separately)
+
+2. ✅ semantic-release
+
+Fully automated release + changelog + GitHub release + npm publish
+
+Runs entirely in CI/CD
+
+Automatically figures out next version from commit messages
+
+✳️ Let's Start with Option 1: standard-version (simpler to integrate)
+✅ Step-by-Step: Using standard-version
+🔹 Step 1: Install standard-version
+npm install --save-dev standard-version
+
+🔹 Step 2: Add npm scripts to package.json
+{
+  "scripts": {
+    "release": "standard-version",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "release:patch": "standard-version --release-as patch"
+  }
+}
+
+🔹 Step 3: Use Conventional Commits
+
+Examples:
+
+git commit -m "feat: add search functionality"
+git commit -m "fix: correct form validation logic"
+git commit -m "chore: update dependencies"
+
+🔹 Step 4: Run the release
+# Generates changelog, bumps version, creates Git tag
+npm run release
+
+# Then push the changes and tag
+git push --follow-tags origin main
+
+🔹 Step 5: Publish (manually or via GitHub Actions)
+npm publish --tag beta  # Or rc/latest depending on stage
+
+
+You can hook this into GitHub Actions (see further below ⬇️).
+
+✅ Optional: Customize Changelog Sections
+
+Add a standard-version config in package.json:
+
+"standard-version": {
+  "types": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "chore", "hidden": true },
+    { "type": "docs", "hidden": true },
+    { "type": "style", "hidden": true },
+    { "type": "refactor", "hidden": true },
+    { "type": "test", "hidden": true }
+  ]
+}
+
+✅ GitHub Actions Integration with standard-version
+
+Add a new job or extend release.yml:
+
+      - name: Bump version and generate changelog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          npm run release
+          git push --follow-tags origin ${{ github.ref_name }}
+
+
+Use this in beta or rc branches if you want auto-bumping and changelog generation before npm publish.
+
+🔁 Option 2: semantic-release (fully automated)
+🧠 Best if you want zero manual steps in the release process (but has more config)
+🔹 Step 1: Install dependencies
+npm install --save-dev semantic-release @semantic-release/npm @semantic-release/git @semantic-release/changelog @semantic-release/commit-analyzer @semantic-release/release-notes-generator
+
+🔹 Step 2: Add .releaserc config file
+{
+  "branches": ["main", "beta", "rc"],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    "@semantic-release/changelog",
+    ["@semantic-release/npm", {
+      "npmPublish": true
+    }],
+    ["@semantic-release/git", {
+      "assets": ["CHANGELOG.md", "package.json"],
+      "message": "chore(release): ${nextRelease.version} [skip ci]"
+    }]
+  ]
+}
+
+🔹 Step 3: GitHub Actions workflow
+name: Semantic Release
+
+on:
+  push:
+    branches:
+      - main
+      - beta
+      - rc
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Semantic release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npx semantic-release
+
+🔹 Step 4: Use Conventional Commits
+
+Same as with standard-version.
+
+✅ Result:
+
+Automatically detects version bump (major/minor/patch)
+
+Generates changelog
+
+Commits it
+
+Tags the release
+
+Publishes to npm
+
+Creates GitHub release
+
+Summary: Which Should You Choose?
+Tool	Pros	Cons
+standard-version	Easy to start, manual control	You still need to push and publish manually or wire CI
+semantic-release	Fully automated end-to-end	More setup, CI-driven only, can be overkill for small libs
+
+
+
+Would you like a repo example using either of these? Or do you want to go with one option now and I can help implement it step-by-step?
+
+Example Repo Structure (Template)
+
+Here’s a simplified structure of what your repo might look like:
+my-angular-lib/
+├── .github/
+│   └── workflows/
+│       └── release.yml
+├── src/
+│   └── index.ts
+├── package.json
+├── tsconfig.json
+├── README.md
+├── .releaserc.json
+├── CHANGELOG.md
+└── .npmrc
+
+Configuration Files & Key Parts
+package.json
+
+Here’s a sample minimal package.json:
+{
+  "name": "my-angular-lib",
+  "version": "0.0.0-dev",
+  "description": "My Angular library",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "echo \"No tests yet\"",
+    "prepack": "npm run build",
+    "prepare": "npm run build"
+  },
+  "peerDependencies": {
+    "@angular/core": "^15.0.0",
+    "@angular/common": "^15.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "semantic-release": "^23.0.0",
+    "@semantic-release/changelog": "^6.0.0",
+    "@semantic-release/git": "^10.0.0",
+    "@semantic-release/npm": "^9.0.0",
+    "@semantic-release/commit-analyzer": "^10.0.0",
+    "@semantic-release/release-notes-generator": "^10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/my-angular-lib.git"
+  },
+  "license": "MIT"
+}
+
+Notes:
+
+Start the version in package.json as a placeholder (e.g. 0.0.0-dev) — semantic-release will manage the real versions.
+
+prepack or prepare ensures that build happens before publishing if someone does npm publish manually.
+
+The devDependencies include all the semantic‑release plugin packages.
+
+
+.releaserc.json
+
+This config controls how semantic-release works in your repo.
+{
+  "branches": [
+    "main",
+    {
+      "name": "beta",
+      "prerelease": true
+    },
+    {
+      "name": "rc",
+      "prerelease": true
+    }
+  ],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/npm",
+      {
+        "npmPublish": true
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md", "package.json"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]"
+      }
+    ]
+  ]
+}
+
+
+What this config does:
+
+Releases are done from main as stable releases (to npm @latest).
+
+The beta and rc branches are treated as pre-release branches (so versions like 1.2.0‑beta.x or 1.2.0‑rc.x) 
+Semantic Release
++1
+
+It uses the commit message analyzers and release notes generators (so you must follow conventional commit style, e.g. feat: …, fix: …, or BREAKING CHANGE: …) 
+Semantic Release
++1
+
+It will update the CHANGELOG.md and package.json with the new version, commit those changes, and tag the release. Then it will publish to npm.
+
+.npmrc
+
+In your repo (or in CI environment), include:
+registry=https://registry.npmjs.org/
+//registry.npmjs.org/:_authToken=${NPM_TOKEN}
+
+
+CHANGELOG.md
+You can initialize it as empty or with a header:
+# Changelog
+
+All notable changes to this project will be documented in this file  Semantic-release will append new release notes to it.
+ 
+ 
+.github/workflows/release.yml
+This is the GitHub Actions workflow that triggers semantic-release:
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+      - beta
+      - rc
+
+jobs:
+  release:
+    name: Release package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # important: we need full git history for semantic-release to detect tags
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18.x"
+          registry-url: "https://registry.npmjs.org/"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run build (optional, but often necessary)
+        run: npm run build
+
+      - name: Semantic Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npx semantic-release
+
+Important details:
+
+fetch-depth: 0 in actions/checkout is important so semantic-release can access git tags and history to compute the correct version bump.
+
+You provide both GITHUB_TOKEN and NPM_TOKEN so that semantic-release can push commits, tags, release notes back to GitHub, and publish to npm.
+
+You may run build/test steps prior to invoking semantic-release.
+
+How the Flow Works in Practice
+
+Developer writes code and commits using conventional commit messages.
+
+Examples:
+
+feat(module): add new feature X
+
+fix(module): correct behavior of Y
+
+feat(module): change behavior Z\n\nBREAKING CHANGE: old API removed
+
+They push (or merge) into one of the release branches:
+
+main (for stable releases)
+
+beta (for pre-release / testing)
+
+rc (for “release candidate” pre-release)
+
+GitHub Actions triggers on push to main, beta, or rc.
+
+The release job runs, semantic-release:
+
+Inspects commit history since last release
+
+Determines bump level (major / minor / patch / pre-release) based on commit messages
+
+Updates package.json, CHANGELOG.md
+
+Commits those changes and tags a new version
+
+Pushes commit + tag back to the repo (via @semantic-release/git)
+
+Publishes new version to npm (via @semantic-release/npm)
+
+Optionally creates GitHub release / release notes
+
+Consumers (your app, other libs) can install:
+
+For stable: npm install my-angular-lib@latest
+
+For pre-release (from beta): npm install my-angular-lib@beta
+
+For rc: npm install my-angular-lib@rc
+
+Once beta or rc changes have been tested and approved, you can merge beta → main (or rc → main) and the next release from main will promote the version to stable (@latest).
+
+This pattern is documented in the semantic-release “publishing pre‑releases” recipe. 
+Semantic Release
+
+
+Example Use Case Timeline
+
+Say your last stable version was 1.0.0 (on main). You then want to start a new major version 2.0 but test it first.
+
+You branch beta from main and commit feat: add new API → semantic-release will publish 2.0.0-beta.1 on dist-tag beta 
+Semantic Release
+
+You continue working: more feat or fix commits → 2.0.0-beta.2, 2.0.0-beta.3, and so on.
+
+Meanwhile, you might still push fix: commits to main, which result in e.g. 1.0.1, 1.0.2 on @latest.
+
+Once your beta is stable, you merge beta into main. Then semantic-release will release 2.0.0 on @latest.
+
+You can do similar with rc if you need a stage between beta and final.
+
+Getting Started: Checklist
+
+Here’s a checklist to get this working in your library:
+
+Step	Action
+1	Add semantic-release and its plugins to devDependencies
+2	Create .releaserc.json with branches + plugin configuration
+3	Ensure package.json has meaningful metadata (name, repository, etc.)
+4	Add .npmrc to point to npm registry & use NPM_TOKEN
+5	Create release.yml workflow under .github/workflows
+6	Ensure conventional commit style is followed (you may use commitlint / Husky)
+7	Add fetch-depth: 0 to actions/checkout so full git history and tags are accessible
+8	Push to main, beta, rc branches to trigger releases
