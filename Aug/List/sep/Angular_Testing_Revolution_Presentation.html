@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Angular's Testing Revolution - Presentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .slide {
+            width: 100vw;
+            height: 100vh;
+            display: none;
+            padding: 60px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .slide.active {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        h1 {
+            font-size: 4em;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        h2 {
+            font-size: 3em;
+            margin-bottom: 40px;
+            color: #ffd700;
+        }
+        h3 {
+            font-size: 2em;
+            margin-bottom: 20px;
+            color: #ffd700;
+        }
+        p, li {
+            font-size: 1.4em;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        ul {
+            margin-left: 40px;
+        }
+        .subtitle {
+            font-size: 1.8em;
+            color: #e0e0e0;
+        }
+        .highlight {
+            color: #ffd700;
+            font-weight: bold;
+        }
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            margin: 5px;
+            font-size: 1.2em;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #764ba2;
+        }
+        .slide-number {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            font-size: 1.2em;
+            color: #ffd700;
+        }
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 20px;
+        }
+        .box {
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 10px;
+            border-left: 5px solid #ffd700;
+        }
+        .icon {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.3);
+        }
+        th {
+            background: rgba(255,255,255,0.2);
+            color: #ffd700;
+        }
+        code {
+            background: rgba(0,0,0,0.3);
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <!-- Slide 1: Title -->
+    <div class="slide active">
+        <h1>🚀 Angular's Testing Revolution</h1>
+        <p class="subtitle">Vitest, Fake Timers & Testronaut</p>
+        <p class="subtitle" style="margin-top: 40px;">Coming with Angular 21</p>
+        <p style="margin-top: 60px; font-size: 1.2em; color: #e0e0e0;">Presentation for Developers & Business Teams</p>
+    </div>
+
+    <!-- Slide 2: Executive Summary -->
+    <div class="slide">
+        <h2>📊 Executive Summary</h2>
+        <div class="box">
+            <h3>What's Changing?</h3>
+            <ul>
+                <li><span class="highlight">Vitest</span> becomes the default testing framework</li>
+                <li>Replaces legacy Karma/Jasmine setup</li>
+                <li>New <span class="highlight">Testronaut</span> tool for component testing</li>
+                <li>Modern async testing with <span class="highlight">Fake Timers</span></li>
+            </ul>
+        </div>
+        <div class="box" style="margin-top: 30px;">
+            <h3>Business Impact</h3>
+            <ul>
+                <li>✅ Faster development cycles</li>
+                <li>✅ Improved code quality & reliability</li>
+                <li>✅ Better developer experience & productivity</li>
+                <li>✅ Alignment with industry standards</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Slide 3: The Problem -->
+    <div class="slide">
+        <h2>❓ The Problem: Testing Limbo</h2>
+        <div class="two-column">
+            <div>
+                <h3>Previous State (2023-2024)</h3>
+                <ul>
+                    <li>Karma deprecated in 2023</li>
+                    <li>No clear direction forward</li>
+                    <li>Multiple competing options:
+                        <ul style="margin-left: 40px; margin-top: 10px;">
+                            <li>Stay with Jasmine?</li>
+                            <li>Move to Jest?</li>
+                            <li>Try Vitest?</li>
+                        </ul>
+                    </li>
+                    <li>Teams hesitant to commit</li>
+                    <li>Planning difficulties</li>
+                </ul>
+            </div>
+            <div>
+                <h3>Impact on Projects</h3>
+                <div class="box">
+                    <p class="icon">⚠️</p>
+                    <p><strong>Technical Debt:</strong> Unclear migration paths</p>
+                </div>
+                <div class="box" style="margin-top: 20px;">
+                    <p class="icon">⏱️</p>
+                    <p><strong>Delays:</strong> Teams waiting for official guidance</p>
+                </div>
+                <div class="box" style="margin-top: 20px;">
+                    <p class="icon">💰</p>
+                    <p><strong>Costs:</strong> Multiple rewrites possible</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 4: The Solution -->
+    <div class="slide">
+        <h2>✅ The Solution: Clear Direction</h2>
+        <h3 style="margin-bottom: 30px;">Angular 21 brings certainty</h3>
+        <div class="box">
+            <p class="icon">🎯</p>
+            <h3>Official Decision</h3>
+            <p><span class="highlight">Vitest</span> is now the recommended testing framework</p>
+        </div>
+        <div class="two-column" style="margin-top: 30px;">
+            <div class="box">
+                <h3>For Teams</h3>
+                <ul>
+                    <li>Clear migration path</li>
+                    <li>Official support & schematics</li>
+                    <li>Long-term stability</li>
+                    <li>Community backing</li>
+                </ul>
+            </div>
+            <div class="box">
+                <h3>For Projects</h3>
+                <ul>
+                    <li>Confident planning</li>
+                    <li>Future-proof choice</li>
+                    <li>Industry alignment</li>
+                    <li>Better ecosystem</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 5: Why Vitest? -->
+    <div class="slide">
+        <h2>🧪 Why Vitest?</h2>
+        <div class="two-column">
+            <div>
+                <h3>Technical Advantages</h3>
+                <ul>
+                    <li><span class="highlight">TypeScript-first</span> - Native support</li>
+                    <li><span class="highlight">ESM Support</span> - Modern JavaScript</li>
+                    <li><span class="highlight">Browser Mode</span> - Real environment testing</li>
+                    <li><span class="highlight">Vite-powered</span> - Fast & modern</li>
+                    <li>Rich API with advanced features</li>
+                    <li>Better async handling</li>
+                </ul>
+            </div>
+            <div>
+                <h3>Business Benefits</h3>
+                <div class="box">
+                    <p>⚡ <strong>Speed:</strong> Faster test execution</p>
+                </div>
+                <div class="box" style="margin-top: 15px;">
+                    <p>📈 <strong>Growth:</strong> Rising industry adoption</p>
+                </div>
+                <div class="box" style="margin-top: 15px;">
+                    <p>🔄 <strong>Integration:</strong> Better ecosystem fit</p>
+                </div>
+                <div class="box" style="margin-top: 15px;">
+                    <p>👥 <strong>Talent:</strong> Easier developer onboarding</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 6: Vitest vs Jest -->
+    <div class="slide">
+        <h2>⚖️ Vitest vs Jest: Market Position</h2>
+        <table>
+            <tr>
+                <th>Aspect</th>
+                <th>Jest</th>
+                <th>Vitest</th>
+            </tr>
+            <tr>
+                <td>Market Share</td>
+                <td>Still dominant (2024)</td>
+                <td>Rapidly growing</td>
+            </tr>
+            <tr>
+                <td>TypeScript</td>
+                <td>Requires configuration</td>
+                <td>Native support ✅</td>
+            </tr>
+            <tr>
+                <td>ES Modules</td>
+                <td>Known issues ⚠️</td>
+                <td>Full support ✅</td>
+            </tr>
+            <tr>
+                <td>Speed</td>
+                <td>Good</td>
+                <td>Faster ⚡</td>
+            </tr>
+            <tr>
+                <td>Browser Mode</td>
+                <td>Limited</td>
+                <td>Built-in ✅</td>
+            </tr>
+            <tr>
+                <td>Ecosystem</td>
+                <td>Mature</td>
+                <td>Modern & Growing</td>
+            </tr>
+        </table>
+        <p style="margin-top: 30px; font-size: 1.2em;">
+            <span class="highlight">Verdict:</span> Vitest is the forward-looking choice for Angular
+        </p>
+    </div>
+
+    <!-- Slide 7: Key Features -->
+    <div class="slide">
+        <h2>🎯 Vitest Key Features</h2>
+        <div class="two-column">
+            <div class="box">
+                <h3>1. Polling Feature</h3>
+                <p>Automatically waits for async operations</p>
+                <code>await expect.poll(() => value).toBe(3)</code>
+            </div>
+            <div class="box">
+                <h3>2. Soft Assertions</h3>
+                <p>Run all tests even if one fails</p>
+                <code>expect.soft(value).toBe(true)</code>
+            </div>
+        </div>
+        <div class="two-column" style="margin-top: 20px;">
+            <div class="box">
+                <h3>3. Test Context</h3>
+                <p>Dependency injection for tests</p>
+                <code>test('name', async ({ context }) => {})</code>
+            </div>
+            <div class="box">
+                <h3>4. Browser Mode</h3>
+                <p>Test in real browser environment</p>
+                <code>vitest --browser</code>
+            </div>
+        </div>
+        <div class="box" style="margin-top: 20px;">
+            <h3>5. Fake Timers</h3>
+            <p>Control time in tests for async operations</p>
+            <code>vitest.runAllTimers() // Fast-forward time</code>
+        </div>
+    </div>
+
+    <!-- Slide 8: Fake Timers -->
+    <div class="slide">
+        <h2>⏱️ Fake Timers: New Async Testing</h2>
+        <h3>Replacing Zone.js-based testing</h3>
+        <div class="two-column">
+            <div>
+                <h3>❌ Old Way (Zone.js)</h3>
+                <div class="box">
+                    <p><code>fakeAsync()</code></p>
+                    <p><code>waitForAsync()</code></p>
+                    <p><code>tick()</code></p>
+                    <p><code>flush()</code></p>
+                </div>
+                <p style="margin-top: 20px;">⚠️ Deprecated in zoneless Angular</p>
+            </div>
+            <div>
+                <h3>✅ New Way (Fake Timers)</h3>
+                <div class="box">
+                    <p><code>vitest.useFakeTimers()</code></p>
+                    <p><code>vitest.runAllTimers()</code></p>
+                    <p><code>vitest.advanceTimersByTime(ms)</code></p>
+                    <p><code>vitest.runOnlyPendingTimers()</code></p>
+                </div>
+                <p style="margin-top: 20px;">✅ Works with zoneless Angular</p>
+            </div>
+        </div>
+        <div class="box" style="margin-top: 30px;">
+            <h3>💡 Key Benefit</h3>
+            <p>Full control over time in tests - no more waiting for real timeouts!</p>
+        </div>
+    </div>
+
+    <!-- Slide 9: Testronaut -->
+    <div class="slide">
+        <h2>🧑‍🚀 Testronaut: Component Testing Revolution</h2>
+        <h3>Playwright-based Component Testing for Angular</h3>
+        <div class="box">
+            <h3>What is Testronaut?</h3>
+            <p>Community-driven Playwright Component Testing runner that lets you test Angular components in isolation using real browser automation</p>
+        </div>
+        <div class="two-column" style="margin-top: 30px;">
+            <div class="box">
+                <h3>Why Component Testing?</h3>
+                <ul>
+                    <li>Test components in isolation</li>
+                    <li>No full app startup needed</li>
+                    <li>Faster than E2E tests</li>
+                    <li>Real browser environment</li>
+                    <li>Visual feedback</li>
+                </ul>
+            </div>
+            <div class="box">
+                <h3>Advantages</h3>
+                <ul>
+                    <li>🎯 Focused testing</li>
+                    <li>⚡ Fast execution</li>
+                    <li>👁️ Visual verification</li>
+                    <li>🤖 Auto async handling</li>
+                    <li>🔧 Uses Angular CLI</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 10: Testing Strategy -->
+    <div class="slide">
+        <h2>🎯 Complete Testing Strategy</h2>
+        <table>
+            <tr>
+                <th>Test Type</th>
+                <th>Tool</th>
+                <th>Use Case</th>
+                <th>Speed</th>
+            </tr>
+            <tr>
+                <td><strong>Unit Tests</strong></td>
+                <td>Vitest</td>
+                <td>Logic, services, utilities</td>
+                <td>⚡⚡⚡ Very Fast</td>
+            </tr>
+            <tr>
+                <td><strong>Component Tests</strong></td>
+                <td>Testronaut</td>
+                <td>UI components in isolation</td>
+                <td>⚡⚡ Fast</td>
+            </tr>
+            <tr>
+                <td><strong>E2E Tests</strong></td>
+                <td>Playwright</td>
+                <td>Full user workflows</td>
+                <td>⚡ Slower</td>
+            </tr>
+        </table>
+        <div class="box" style="margin-top: 30px;">
+            <h3>💡 Recommended Approach</h3>
+            <p><span class="highlight">Testing Pyramid:</span> Many unit tests (Vitest) → Some component tests (Testronaut) → Few E2E tests (Playwright)</p>
+        </div>
+    </div>
+
+    <!-- Slide 11: Migration Path -->
+    <div class="slide">
+        <h2>🛣️ Migration Path</h2>
+        <h3>Step-by-Step Transition</h3>
+        <div class="box">
+            <h3>Phase 1: Assessment (Week 1-2)</h3>
+            <ul>
+                <li>Audit existing tests</li>
+                <li>Identify dependencies on Karma/Jasmine</li>
+                <li>Plan migration strategy</li>
+            </ul>
+        </div>
+        <div class="box" style="margin-top: 20px;">
+            <h3>Phase 2: Setup (Week 3)</h3>
+            <ul>
+                <li>Install Vitest: <code>ng add @angular/vitest</code></li>
+                <li>Run migration schematics</li>
+                <li>Configure test environment</li>
+            </ul>
+        </div>
+        <div class="box" style="margin-top: 20px;">
+            <h3>Phase 3: Migration (Week 4-8)</h3>
+            <ul>
+                <li>Convert tests incrementally</li>
+                <li>Update async testing patterns</li>
+                <li>Train team on new APIs</li>
+                <li>Verify test coverage maintained</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Slide 12: Timeline -->
+    <div class="slide">
+        <h2>📅 Timeline & Availability</h2>
+        <div class="box">
+            <h3>Current Status (October 2024)</h3>
+            <ul>
+                <li>✅ Vitest available in Angular 20</li>
+                <li>✅ Can be used in production today</li>
+                <li>⏳ Angular 21 release: <span class="highlight">~2 weeks</span></li>
+            </ul>
+        </div>
+        <div class="box" style="margin-top: 30px;">
+            <h3>Angular 21 (November 2024)</h3>
+            <ul>
+                <li>🎯 Vitest becomes <span class="highlight">default</span> in new projects</li>
+                <li>🎯 Official migration schematics released</li>
+                <li>🎯 <code>ng new</code> prompts for Vitest or Jasmine</li>
+                <li>🎯 Zoneless mode becomes default</li>
+            </ul>
+        </div>
+        <div class="box" style="margin-top: 30px;">
+            <h3>Testronaut</h3>
+            <ul>
+                <li>✅ Already available at <span class="highlight">testronaut.dev</span></li>
+                <li>⏳ Schematics coming soon for easier setup</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Slide 13: Business Impact -->
+    <div class="slide">
+        <h2>💼 Business Impact Analysis</h2>
+        <div class="two-column">
+            <div>
+                <div class="box">
+                    <h3>✅ Benefits</h3>
+                    <ul>
+                        <li><strong>Faster Development:</strong> 30-50% faster tests</li>
+                        <li><strong>Better Quality:</strong> Catch bugs earlier</li>
+                        <li><strong>Developer Satisfaction:</strong> Modern tooling</li>
+                        <li><strong>Future-Proof:</strong> Industry alignment</li>
+                        <li><strong>Reduced Costs:</strong> Less maintenance</li>
+                    </ul>
+                </div>
+            </div>
+            <div>
+                <div class="box">
+                    <h3>⚠️ Considerations</h3>
+                    <ul>
+                        <li><strong>Migration Effort:</strong> 4-8 weeks</li>
+                        <li><strong>Learning Curve:</strong> Team training needed</li>
+                        <li><strong>Testing Rewrite:</strong> Some tests need updates</li>
+                        <li><strong>CI/CD Updates:</strong> Pipeline adjustments</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="box" style="margin-top: 30px;">
+            <h3>💰 ROI Estimate</h3>
+            <p><span class="highlight">Payback Period:</span> 3-6 months through improved productivity and reduced debugging time</p>
+        </div>
+    </div>
+
+    <!-- Slide 14: Recommendations -->
+    <div class="slide">
+        <h2>💡 Recommendations</h2>
+        <div class="box">
+            <h3>For New Projects</h3>
+            <p style="font-size: 1.6em;">✅ <span class="highlight">Start with Vitest immediately</span></p>
+            <p>No migration needed, instant benefits</p>
+        </div>
+        <div class="box" style="margin-top: 30px;">
+            <h3>For Existing Projects</h3>
+            <ul>
+                <li><strong>Small Projects:</strong> Migrate during Angular 21 upgrade</li>
+                <li><strong>Large Projects:</strong> Plan phased migration over 2-3 sprints</li>
+                <li><strong>Critical Projects:</strong> Wait for Angular 21 stable + migration guide</li>
+            </ul>
+        </div>
+        <div class="box" style="margin-top: 30px;">
+            <h3>Action Items</h3>
+            <ol>
+                <li>Set up pilot project with Vitest</li>
+                <li>Train core team members</li>
+                <li>Develop migration strategy</li>
+                <li>Budget time for transition</li>
+            </ol>
+        </div>
+    </div>
+
+    <!-- Slide 15: Resources -->
+    <div class="slide">
+        <h2>📚 Resources & Next Steps</h2>
+        <div class="two-column">
+            <div class="box">
+                <h3>Documentation</h3>
+                <ul>
+                    <li>🔗 Vitest: <strong>vitest.dev</strong></li>
+                    <li>🔗 Testronaut: <strong>testronaut.dev</strong></li>
+                    <li>🔗 Angular Docs: <strong>angular.dev</strong></li>
+                    <li>🔗 Playwright: <strong>playwright.dev</strong></li>
+                </ul>
+            </div>
+            <div class="box">
+                <h3>Community</h3>
+                <ul>
+                    <li>📰 Follow Angular blog</li>
+                    <li>💬 Join Angular Discord</li>
+                    <li>🐦 Twitter: @angular</li>
+                    <li>📺 YouTube: Angular channel</li>
+                </ul>
+            </div>
+        </div>
+        <div class="box" style="margin-top: 30px;">
+            <h3>🎯 Immediate Next Steps</h3>
+            <ol>
+                <li>Review this presentation with your team</li>
+                <li>Assess current testing infrastructure</li>
+                <li>Plan migration timeline</li>
+                <li>Allocate resources for transition</li>
+                <li>Monitor Angular 21 release announcement</li>
+            </ol>
+        </div>
+    </div>
+
+    <!-- Slide 16: Q&A -->
+    <div class="slide">
+        <h2>❓ Questions & Discussion</h2>
+        <div class="box">
+            <h3>Key Takeaways</h3>
+            <ul>
+                <li>✅ <span class="highlight">Vitest</span> is the future of Angular testing</li>
+                <li>✅ Clear migration path with official support</li>
+                <li>✅ Modern tooling improves developer experience</li>
+                <li>✅ <span class="highlight">Testronaut</span> fills component testing gap</li>
+                <li>✅ Investment pays off in 3-6 months</li>
+            </ul>
+        </div>
+        <div style="text-align: center; margin-top: 80px;">
+            <h1 style="font-size: 5em;">Thank You! 🙏</h1>
+            <p class="subtitle" style="margin-top: 30px;">Ready for the testing revolution?</p>
+        </div>
+    </div>
+
+    <div class="slide-number" id="slideNumber">1 / 16</div>
+    <div class="controls">
+        <button onclick="previousSlide()">← Previous</button>
+        <button onclick="nextSlide()">Next →</button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+
+        function showSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (n + totalSlides) % totalSlides;
+            slides[currentSlide].classList.add('active');
+            document.getElementById('slideNumber').textContent = `${currentSlide + 1} / ${totalSlides}`;
+        }
+
+        function nextSlide() {
+            showSlide(currentSlide + 1);
+        }
+
+        function previousSlide() {
+            showSlide(currentSlide - 1);
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                previousSlide();
+            }
+        });
+    </script>
+</body>
+</html>
