@@ -1,0 +1,187 @@
+Low-Level Design (LLD) — Angular SPA
+Project: [Project Name]
+Author: [Your Name]
+Date: [YYYY-MM-DD]
+Audience: Front-end developers, backend engineers, QA, DevOps
+________________________________________
+1. Purpose & Scope
+This document provides a developer-focused low-level design for the Angular Single Page Application. It describes module/component structure, data models, API contracts, state management, routing, error handling, security, testing and deployment considerations — good enough for developers to start implementation and sprint-level estimations.
+Scope: UI implementation details, client-side integration with backend APIs, client-side validation, offline/edge-cases, and build/deploy pipeline.
+Out of scope: Backend internal implementation details, DB schema design (except DTOs and contracts), third-party infra setup (except integration points).
+________________________________________
+2. Goals & Non-Goals
+Goals - Deliver modular, testable, and maintainable Angular code (v18+) - Clear separation of concerns: presentation, business logic, data layer - Predictable state management (NgRx recommended) - Strong typing (TypeScript interfaces + DTOs) - CI/CD friendly builds and automated test coverage
+Non-Goals - Rewriting backend APIs - UI pixel-perfect styling decisions (handled by design system)
+________________________________________
+3. Assumptions
+•	Angular 18+ and TypeScript 5+ used
+•	Project uses Nx or Angular CLI workspace
+•	NgRx for state management (or an alternative if requested)
+•	REST + JSON (or GraphQL — choose one and adapt API contract section)
+•	OAuth2 / JWT for authentication
+•	Design tokens and component library (e.g., Angular Material + design system)
+________________________________________
+4. High-level Architecture
+(Edge) Browser <-> Angular SPA (App Shell, Lazy Modules, NgRx) <-> API Gateway <-> Microservices
+Key patterns - App shell with lazy-loaded feature modules - Smart (container) vs dumb (presentational) components - Service layer for API calls and retry/circuit-breaker behavior - Centralized error handling, logging and telemetry - Feature toggles for progressive rollout
+________________________________________
+5. Module & Component Structure
+src/
+├─ app/
+│  ├─ core/               # singletons: auth, http interceptors, logger
+│  ├─ shared/             # reusable UI components, pipes, directives
+│  ├─ features/
+│  │  ├─ dashboard/       # dashboard module (lazy)
+│  │  ├─ orders/          # orders module (lazy)
+│  │  └─ settings/        # settings module (lazy)
+│  ├─ store/              # NgRx store (reducers, effects, selectors)
+│  ├─ app-routing.module.ts
+│  └─ app.module.ts
+Component types
+•	Page / Route components: top-level, orchestrate feature components
+•	Container components (smart): talk to store/services, pass data to presentational components
+•	Presentational components (dumb): inputs/outputs only, no side-effects
+•	UI atoms: buttons, inputs, avatars — in shared/ui/
+________________________________________
+6. State Management (NgRx)
+Store layout
+store/
+├─ app.state.ts         # root state interface
+├─ reducers/
+├─ actions/
+├─ effects/
+├─ selectors/
+Guidelines - Keep server-of-truth in backend; client-side store mirrors UI state and caching - Use effects for side-effects (HTTP), with optimistic updates only when safe - Normalize entity collections (use entities and ids) to keep selectors performant - Use feature-level selectors and memoize heavy computations
+Example root state
+export interface AppState {
+  auth: AuthState;
+  orders: OrdersState;
+  ui: UIState;
+}
+________________________________________
+7. API Contracts (Sample)
+Use OpenAPI spec or GraphQL schema as source of truth. Below are sample REST DTOs and endpoints.
+Auth
+POST /api/v1/auth/login — request
+{ "username": "string", "password": "string" }
+response (200)
+{ "accessToken": "jwt", "refreshToken": "jwt", "expiresIn": 3600 }
+Orders
+GET /api/v1/orders?page=1&size=20 response (200)
+{
+  "items": [{ "id": "uuid", "status": "NEW", "total": 123.45 }],
+  "page": 1,
+  "size": 20,
+  "total": 123
+}
+Guidelines - Prefer explicit response envelopes: { data, meta, errors } - All date-times use ISO-8601 UTC strings - Use proper HTTP status codes (400, 401, 403, 404, 409, 500)
+________________________________________
+8. Client-side Data Models (TypeScript)
+export interface OrderDTO {
+  id: string;
+  status: 'NEW' | 'CONFIRMED' | 'SHIPPED' | 'CANCELLED';
+  total: number;
+  createdAt: string; // ISO-8601
+}
+
+export interface PagedResult<T> {
+  items: T[];
+  page: number;
+  size: number;
+  total: number;
+}
+________________________________________
+9. HTTP Layer & Interceptors
+Responsibilities - Attach Authorization header - Global error handling (map to domain errors) - Request/response timing and telemetry - Retry strategy for idempotent GETs (exponential backoff)
+Interceptor order 1. Logging/Timing 2. Auth (attach tokens) 3. Error mapper
+Sample service pattern
+class OrdersService {
+  constructor(private http: HttpClient) {}
+  getOrders(page = 1, size = 20) {
+    return this.http.get<PagedResult<OrderDTO>>(`/api/v1/orders?page=${page}&size=${size}`);
+  }
+}
+________________________________________
+10. Routing & Lazy Loading
+•	Feature modules must be lazy-loaded using loadChildren
+•	Protect routes with AuthGuard + role checks
+•	Use route resolvers sparingly — prefer effects to preload data
+Example:
+{ path: 'orders', loadChildren: () => import('./features/orders/orders.module').then(m => m.OrdersModule), canActivate: [AuthGuard] }
+________________________________________
+11. Security
+Client-side responsibilities: - Use HTTPS only - Store tokens securely: prefer in-memory + refresh via HttpOnly cookie (backend support). If localStorage used, justify and mitigate XSS risk. - Sanitize user-provided HTML - Implement role-based UI gating (but enforce again on backend) - CSP headers configured server-side
+________________________________________
+12. Error Handling
+•	Normalize error envelope { code, message, details? }
+•	Show user-friendly messages for known codes; track unknown errors centrally
+•	Use central ErrorHandler to capture unhandled errors and report to telemetry (Sentry, Datadog)
+________________________________________
+13. Logging & Monitoring
+•	Client telemetry events: page view, critical errors, API latency > threshold, feature usage
+•	Use batching for telemetry uploads
+•	Configure environment-specific toggles (dev vs prod)
+________________________________________
+14. Caching & Performance
+•	Use HTTP caching headers; client can use cache layer in services for heavy-read endpoints
+•	Use OnPush change detection for presentational components
+•	Virtualize large lists (cdk-virtual-scroll)
+•	Avoid deep object mutation — prefer immutable updates for NgRx
+•	Bundle splitting and source map generation only for staging and debug builds
+________________________________________
+15. Accessibility
+•	All interactive components must follow WCAG 2.1 AA: keyboard focus, aria-labels, contrast
+•	Use automated a11y checks in CI (axe-core)
+________________________________________
+16. Testing Strategy
+Unit tests - Components: shallow tests for inputs/outputs - Services: mock HttpClient, test retry, error mapping - NgRx: test reducers, selectors, effects (with marbles or plain observables)
+Integration / E2E - Cypress for critical flows (login, order create, checkout) - Visual regression for key screens (Percy or Playwright snapshot)
+Coverage targets - 80% for services and business logic; components TBD by team
+________________________________________
+17. CI/CD
+•	PR pipeline: lint, unit tests, build
+•	Merge to main: run e2e, visual tests, create release artifact
+•	Deploy pipeline: staged deploy to dev -> staging -> canary -> production
+•	Canary and feature toggle system for safe rollouts
+________________________________________
+18. Deployment & Environments
+•	Environments: dev, qa, staging, production
+•	Use environment files or runtime config endpoint for baseApiUrl and feature toggles
+•	Build artifact: immutable S3/Blob storage + CDN + cache-control headers
+________________________________________
+19. Backwards Compatibility & Migration
+•	API versioning in path (/api/v1/)
+•	Client must tolerate unknown fields in DTOs
+•	Migration plan for breaking changes: feature teams coordinate deprecation cycles
+________________________________________
+20. Operational Runbook (short)
+•	How to triage slow pages: check frontend telemetry for API latency -> inspect network waterfall -> reproduce with mocked latency
+•	Recovery: roll back to previous artifact on CDN
+________________________________________
+21. Work Items / Developer Checklist
+☐	Create feature module skeleton (lazy-loaded)
+☐	Add NgRx feature store (actions, reducer, effects)
+☐	Implement service + interceptor usage
+☐	Implement 80% unit test coverage for service/effect logic
+☐	E2E test for major happy path
+☐	Configure telemetry and error reporting
+☐	Perform accessibility review
+________________________________________
+22. Appendix — Useful Snippets
+DTO Example
+export interface LoginRequest { username: string; password: string; }
+export interface LoginResponse { accessToken: string; refreshToken: string; expiresIn: number; }
+Sequence: Order list load (happy path)
+1.	User navigates to /orders
+2.	OrdersRouteResolver (or container) dispatches LoadOrders action
+3.	OrdersEffect intercepts LoadOrders, calls OrdersService.getOrders()
+4.	HTTP interceptor attaches token, sends request
+5.	On success LoadOrdersSuccess stores normalized orders in store
+6.	Orders container selects paginatedOrders and passes to presentational components
+________________________________________
+Contact / Next Steps
+•	Link to OpenAPI/GraphQL schema (add URL here)
+•	Provide design tokens / storybook URL
+•	Team to agree on: NgRx vs alternative, Auth token storage approach, API retry semantics
+________________________________________
+End of document
